@@ -40,7 +40,7 @@ function rootReadme() {
     "## Start here",
     "",
     "```bash",
-    "git clone https://github.com/MailFlat/mailflat-examples",
+    "# from the repo root, after `npm run build:examples`",
     "cd mailflat-examples/playwright",
     "cp .env.example .env      # paste your key",
     "npm install && npm test",

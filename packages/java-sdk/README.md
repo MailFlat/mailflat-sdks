@@ -14,7 +14,7 @@ built-in `java.net.http` (no HTTP dependency); JSON via Jackson.
 </repositories>
 
 <dependency>
-  <groupId>com.github.onderyentar21</groupId>
+  <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
   <version>v0.4.4</version>
 </dependency>
@@ -24,7 +24,7 @@ Gradle:
 
 ```groovy
 repositories { maven { url 'https://jitpack.io' } }
-dependencies { implementation 'com.github.onderyentar21:mailflat-sdks:v0.4.4' }
+dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.4.4' }
 ```
 
 ## Quickstart
@@ -187,3 +187,6 @@ confirm other people's addresses. So the two answer different questions: "wrong 
 ## License
 
 MIT
+
+> Versions published before August 2026 resolve under the old coordinate
+> `com.github.onderyentar21:mailflat-sdks`. Both work; new releases use the one above.

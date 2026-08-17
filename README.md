@@ -22,10 +22,11 @@ Authenticate with your account key (`mf_live_…`) from the dashboard (**Agents 
 
 ## Java / Selenium (JitPack)
 
-> The coordinate below is the one that resolves today. JitPack derives the `groupId` from the
-> GitHub owner, and this repo moved to the official `MailFlat` account in August 2026, so the
-> next release publishes as `com.github.MailFlat:mailflat-sdks`. Both are listed here during
-> the transition; the client is moving to Maven Central (`net.mailflat`) after that.
+> JitPack derives the `groupId` from the GitHub owner. This repo moved to the official
+> `MailFlat` account in August 2026, so releases from `v0.4.4` on publish as
+> `com.github.MailFlat:mailflat-sdks`. Earlier versions still resolve under the old
+> coordinate `com.github.onderyentar21:mailflat-sdks`; the old repo stays up for them.
+> The client is moving to Maven Central (`net.mailflat`) next, which ends the owner coupling.
 
 ```xml
 <repositories>
@@ -33,9 +34,9 @@ Authenticate with your account key (`mf_live_…`) from the dashboard (**Agents 
 </repositories>
 
 <dependency>
-  <groupId>com.github.onderyentar21</groupId>
+  <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
-  <version>v0.1.1</version>
+  <version>v0.4.4</version>
 </dependency>
 ```
 

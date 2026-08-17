@@ -71,8 +71,8 @@ Docs: <https://mailflat.net/docs>
 
 ## The examples repo is generated from here
 
-[`mailflat-examples`](https://github.com/MailFlat/mailflat-examples) is not written by
-hand — it is this package's output:
+The `mailflat-examples` tree is not written by hand. It is this package's output, so it
+cannot drift from the templates that ship here:
 
 ```bash
 npm run build:examples -- ../../../mailflat-examples
