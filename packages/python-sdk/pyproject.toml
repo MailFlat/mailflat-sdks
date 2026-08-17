@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mailflat"
+# The version comes from ONE source: src/mailflat/__init__.py::__version__ (see
+# [tool.hatch.version]). Hardcoding a `version = ...` here brings B-052 back: 0.3.1 was on
+# PyPI while the package itself reported `mailflat.__version__ == "0.3.0"`. Two sources drift.
+dynamic = ["version"]
+description = "Official Python SDK for MailFlat — disposable, automation-friendly email inboxes with one-line OTP retrieval."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "MailFlat", email = "support@mailflat.net" }]
+keywords = ["email", "disposable-email", "otp", "automation", "testing", "ai-agents", "temporary-email"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    # BOTH ENDS of the range were actually run (3.11 + 3.14, 53 tests green). No separate
+    # claim is made about the versions in between: we use no version-specific API and every
+    # file carries `from __future__ import annotations`. Floor moved 3.8 → 3.9 because 3.8 is
+    # EOL and was NEVER tested, and claiming an untested version misleads people on PyPI.
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Email",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+# UPPER BOUND: httpx is still pre-1.0 and 1.0 is a declared breaking threshold. Leaving it
+# unbounded invites a repeat of B-047 (mcp>=1.2 → mcp 2.0.0 removed the module → uvx
+# mailflat-mcp crashed). Fine on 0.28.1 today; the bound is raised deliberately when 1.0 ships.
+dependencies = ["httpx>=0.24,<1"]
+
+[project.urls]
+Homepage = "https://mailflat.net"
+# /docs is disabled in production (the FastAPI Swagger surface; see app/main.py).
+# This URL moves to the public documentation site once that page is live.
+Documentation = "https://mailflat.net"
+Source = "https://github.com/MailFlat/mailflat-sdks"
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.2"]
+dev = ["pytest>=7", "respx>=0.20", "langchain-core>=0.2"]
+
+[tool.hatch.version]
+path = "src/mailflat/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mailflat"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/mailflat", "README.md", "LICENSE"]

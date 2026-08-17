@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2021", "DOM"],
+    "declaration": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
+    "outDir": "dist",
+
+    // `@mailflat/sdk` TYPES resolve from local source. This monorepo has no npm workspaces, so
+    // the copy in node_modules is the PUBLISHED version; compiling against it hides any
+    // code using a newer export (redactSecrets, B-055) failing to compile.
+    // Types only: tsup leaves `@mailflat/sdk` external, so the emitted bundle imports the real
+    // package. The range in package.json guarantees the right version —
+    // and RELEASE ORDER matters: publish @mailflat/sdk first, then this package.
+    "paths": {
+      "@mailflat/sdk": ["../js-sdk/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "src/__tests__"]
+}

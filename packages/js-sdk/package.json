@@ -1,0 +1,58 @@
+{
+  "name": "@mailflat/sdk",
+  "version": "0.7.0",
+  "description": "Official TypeScript/JavaScript SDK for MailFlat — disposable, automation-friendly email inboxes with one-line OTP retrieval.",
+  "keywords": [
+    "email",
+    "disposable-email",
+    "otp",
+    "automation",
+    "testing",
+    "ai-agents",
+    "temporary-email"
+  ],
+  "license": "MIT",
+  "author": "MailFlat <support@mailflat.net>",
+  "homepage": "https://mailflat.net",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MailFlat/mailflat-sdks.git",
+    "directory": "packages/js-sdk"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

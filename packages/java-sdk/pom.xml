@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MailFlat Java SDK — Maven build.
+  Connected to: the /api/v1 Agent API, which it wraps (twin of the Python and JS SDKs).
+  Coordinates: net.mailflat:mailflat-sdk. Runtime dep: Jackson (JSON). Test: JUnit 5 (+ JDK HttpServer).
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>net.mailflat</groupId>
+  <artifactId>mailflat-sdk</artifactId>
+  <version>0.4.4</version>
+  <packaging>jar</packaging>
+
+  <name>MailFlat Java SDK</name>
+  <description>Official Java client for MailFlat — disposable, automation-friendly email inboxes with one-line OTP retrieval. Built for Selenium/JUnit test suites.</description>
+  <url>https://mailflat.net</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+
+  <properties>
+    <maven.compiler.release>11</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jackson.version>2.17.2</jackson.version>
+    <junit.version>5.10.3</junit.version>
+  </properties>
+
+  <dependencies>
+    <!-- JSON — the only runtime dependency. HTTP uses java.net.http (built into the JDK). -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+
+    <!-- Tests — JUnit 5. The fake server is JDK com.sun.net.httpserver (no extra dep). -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!-- Version reaches the code from here and nowhere else: mailflat-version.properties
+         carries ${project.version} and is filtered at build time. Writing it a second time
+         by hand is how four packages once reported a version they had not published
+         (B-052). MailFlatTest locks pom <-> runtime agreement. -->
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,67 @@
+{
+  "name": "@mailflat/ai-sdk",
+  "version": "0.8.0",
+  "description": "MailFlat tool suite for the Vercel AI SDK — give any model real disposable inboxes with one-line OTP retrieval.",
+  "keywords": [
+    "vercel-ai-sdk",
+    "ai-sdk",
+    "tools",
+    "email",
+    "disposable-email",
+    "otp",
+    "ai-agents",
+    "mailflat"
+  ],
+  "license": "MIT",
+  "author": "MailFlat <support@mailflat.net>",
+  "homepage": "https://mailflat.net",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MailFlat/mailflat-sdks.git",
+    "directory": "packages/ai-sdk"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "pretest": "npm --prefix ../js-sdk run build && node ./scripts/use-local-sdk.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm test && npm run build"
+  },
+  "dependencies": {
+    "@mailflat/sdk": "^0.7.0",
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "ai": ">=3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

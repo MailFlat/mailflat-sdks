@@ -1,0 +1,13 @@
+# JitPack build config for the Java SDK (packages/java-sdk).
+# JitPack builds on first request for a git tag; the coordinate is derived from the GitHub
+# OWNER of this repo, so it changes when the repo moves:
+#   com.github.onderyentar21:mailflat-sdks:<tag>   (personal account, resolves today)
+#   com.github.MailFlat:mailflat-sdks:<tag>        (official account, from the next tag on)
+# The owner coupling ends when the client moves to Maven Central as net.mailflat.
+# Only the Java module is built (other SDKs are Python/JS, published to PyPI/npm).
+jdk:
+  - openjdk11
+install:
+  # Use the Maven wrapper (pins Maven 3.9.9) — JitPack's bundled Maven is too old
+  # for modern plugin versions. Tests are skipped here (run in CI/local).
+  - cd packages/java-sdk && ./mvnw install -B -DskipTests -Dmaven.javadoc.skip=true

@@ -1,0 +1,46 @@
+{
+  "name": "create-mailflat",
+  "version": "0.2.4",
+  "description": "Scaffold a working email-testing project — Playwright, Vitest or pytest — wired to a real MailFlat inbox.",
+  "keywords": [
+    "email",
+    "email-testing",
+    "otp",
+    "playwright",
+    "vitest",
+    "pytest",
+    "scaffold",
+    "create"
+  ],
+  "license": "MIT",
+  "author": "MailFlat <support@mailflat.net>",
+  "homepage": "https://mailflat.net/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MailFlat/mailflat-sdks.git",
+    "directory": "packages/create-mailflat"
+  },
+  "type": "module",
+  "bin": {
+    "create-mailflat": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "src/args.js",
+    "src/prompt.js",
+    "src/scaffold.js",
+    "src/templates.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test src/__tests__/*.test.mjs",
+    "build:examples": "node scripts/build-examples.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

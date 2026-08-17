@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mailflat-mcp"
+# The version comes from ONE source: src/mailflat_mcp/_version.py::__version__ (see
+# [tool.hatch.version]). Never add a second `version = ...` here — that was exactly B-052
+# (0.2.1 published while the package reported "0.1.0").
+dynamic = ["version"]
+description = "MailFlat MCP server — disposable inbox tools (create, wait_for_otp, send, ...) for Claude Desktop, Cursor, and any MCP client."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "MailFlat", email = "support@mailflat.net" }]
+keywords = ["mcp", "model-context-protocol", "email", "disposable-email", "otp", "ai-agents", "claude", "cursor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    # The floor is >=3.10 (required by the mcp dependency), so listing 3.9 would be wrong.
+    # 3.11 and 3.14 were actually run; nothing version-specific is used in between.
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Email",
+]
+dependencies = [
+    # LOWER BOUND REQUIRED: server.py imports `redact_secrets`, which landed in 0.3.3. With
+    # >=0.3.0 the resolver could pick 0.3.2 and `uvx mailflat-mcp` would die on import — the
+    # mirror image of B-047, this time from the floor.
+    # Raised to 0.7.0 for `send(cc=..., bcc=...)`: with the old floor the resolver could pick
+    # 0.6.1 and every send_email with a cc would die on TypeError — at RUNTIME, in the user's
+    # agent, with our tests green (they run against local source, never the resolved version).
+    "mailflat>=0.11.0",
+    # UPPER BOUND REQUIRED: `mcp` 2.0.0 REMOVED the `mcp.server.fastmcp` module that server.py
+    # imports, so with an unbounded `mcp>=1.2` every new install pulled 2.0.0 and hit
+    # `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`. It broke with no code
+    # change, with green tests, while published. Migrating to the 2.0 API is separate work;
+    # this bound is lifted then.
+    "mcp>=1.2,<2",
+]
+
+[project.scripts]
+mailflat-mcp = "mailflat_mcp.server:main"
+
+[project.urls]
+Homepage = "https://mailflat.net"
+# /docs is disabled in production (the FastAPI Swagger surface; see app/main.py).
+# This URL moves to the public documentation site once that page is live.
+Documentation = "https://mailflat.net"
+Source = "https://github.com/MailFlat/mailflat-sdks"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.hatch.version]
+path = "src/mailflat_mcp/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mailflat_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/mailflat_mcp", "README.md", "LICENSE"]
