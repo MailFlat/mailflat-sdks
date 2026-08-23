@@ -84,7 +84,9 @@ class MailFlatToolkit:
         client = self._client
 
         def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0) -> dict:
-            """Create a real disposable email inbox and return its address.
+            """Open an email inbox and return its address. The address is permanent and
+            stays until you delete it; only the messages inside expire, on the retention
+            window you choose. Use it to sign up for a service or receive a one-time code.
 
             Args:
                 prefix: Optional left-hand prefix (e.g. 'signup'); random if empty.
@@ -344,7 +346,9 @@ class AsyncMailFlatToolkit:
 
         async def create_inbox(prefix: str = "", label: str = "",
                                retention_hours: int = 0) -> dict:
-            """Create a real disposable email inbox and return its address.
+            """Open an email inbox and return its address. The address is permanent and
+            stays until you delete it; only the messages inside expire, on the retention
+            window you choose. Use it to sign up for a service or receive a one-time code.
 
             Args:
                 prefix: Optional left-hand prefix (e.g. 'signup'); random if empty.

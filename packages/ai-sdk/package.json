@@ -1,6 +1,6 @@
 {
   "name": "@mailflat/ai-sdk",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "MailFlat tools for the Vercel AI SDK. Give any model a real email inbox it can create, read, and pull one-time codes from.",
   "keywords": [
     "ai-agents",

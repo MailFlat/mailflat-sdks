@@ -11,11 +11,11 @@
 
   <groupId>net.mailflat</groupId>
   <artifactId>mailflat-sdk</artifactId>
-  <version>0.4.4</version>
+  <version>0.4.5</version>
   <packaging>jar</packaging>
 
   <name>MailFlat Java SDK</name>
-  <description>Official Java client for MailFlat — disposable, automation-friendly email inboxes with one-line OTP retrieval. Built for Selenium/JUnit test suites.</description>
+  <description>Official Java client for MailFlat: permanent, automation-friendly email inboxes with one-line OTP retrieval. Built for Selenium/JUnit test suites.</description>
   <url>https://mailflat.net</url>
 
   <licenses>

@@ -110,7 +110,13 @@ def _forbid_unknown_arguments() -> None:
 
 @mcp.tool()
 def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0) -> dict:
-    """Create a real disposable email inbox. Returns the inbox address.
+    """Open an email inbox and return its address. Use this when you need an address to sign
+    up for a service or to receive a one-time code.
+
+    The address is permanent and stays until you delete it, so a test suite can reuse one
+    address across runs instead of opening a new inbox each time. Only the messages inside
+    expire, on the retention window you choose.
+
     `label` needs a paid plan; on free it is reported back in `ignored_fields`.
     `retention_hours` is optional (0 = your plan's max); requests above your plan are capped."""
     try:

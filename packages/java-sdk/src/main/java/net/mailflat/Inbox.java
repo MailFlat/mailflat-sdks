@@ -16,7 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** A single disposable inbox. Obtain it from {@link MailFlat}, don't construct directly. */
+/** A single inbox. The address is permanent; only its messages expire, on the retention
+ *  window you choose. Obtain it from {@link MailFlat}, don't construct directly. */
 public final class Inbox {
     private static final long DEFAULT_POLL_MILLIS = 1000L;
     /** Delivery is slower than arrival, so polling it every second only burns requests. */

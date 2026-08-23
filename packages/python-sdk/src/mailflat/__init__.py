@@ -46,7 +46,7 @@ from .redact import redact_secrets
 
 # The package's ONLY version source — pyproject.toml reads it via [tool.hatch.version].
 # Releasing = bump this line and nothing else.
-__version__ = "0.11.0"
+__version__ = "0.11.1"
 
 __all__ = [
     "MailFlat",

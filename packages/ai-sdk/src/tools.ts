@@ -147,7 +147,7 @@ export function mailflatToolSuite(options: ToolSuiteOptions = {}): Record<string
 
   return {
     createInbox: defineTool(
-      "Create a real, working disposable email inbox and return its address. Use this when you need an email to sign up for a service or receive a verification code. Messages auto-purge after the plan's retention window.",
+      "Open an email inbox and return its address. Use this when you need an email to sign up for a service or receive a verification code. The address is permanent and stays until you delete it; only the messages expire, on the plan's retention window.",
       z.object({
         prefix: z
           .string()

@@ -112,17 +112,17 @@ public final class MailFlat {
     }
 
     // ------------------------------------------------------------------ public
-    /** Open a new disposable inbox with default options. */
+    /** Open a new inbox with default options. The address is permanent; only its messages expire. */
     public Inbox create() {
         return create(CreateInboxOptions.builder().build());
     }
 
-    /** Open a new disposable inbox with the given label. */
+    /** Open a new inbox with the given label. The address is permanent; only its messages expire. */
     public Inbox create(String label) {
         return create(CreateInboxOptions.builder().label(label).build());
     }
 
-    /** Open a new disposable inbox with explicit options. */
+    /** Open a new inbox with explicit options. The address is permanent; only its messages expire. */
     public Inbox create(CreateInboxOptions opts) {
         ObjectNode payload = mapper.createObjectNode();
         if (opts.prefix != null)         payload.put("prefix", opts.prefix);
