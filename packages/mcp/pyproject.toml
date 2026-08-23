@@ -1,5 +1,14 @@
 [build-system]
-requires = ["hatchling"]
+# UPPER BOUND REQUIRED. Unbounded `hatchling` pulls 1.28+, and that release emits
+# **Metadata-Version 2.5**, which PyPI REJECTS (`twine check` fails with
+# "InvalidDistribution: '2.5' is not a valid metadata version"). Nothing in our code changes,
+# the tests stay green, and publishing breaks anyway because the build backend moved on its
+# own. It is the same trap as the `mcp>=1.2,<2` bound, one layer down: a build dependency
+# instead of a runtime one.
+# The bound was MEASURED, not guessed: the wheels already on PyPI (mailflat 0.11.0,
+# mailflat-mcp 0.9.0) carry metadata **2.4**, and 1.27 is what produces it
+# (1.26 emits 2.3, 1.28+ emits 2.5).
+requires = ["hatchling>=1.27,<1.28"]
 build-backend = "hatchling.build"
 
 [project]
