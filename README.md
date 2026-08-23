@@ -1,8 +1,10 @@
 # MailFlat SDKs
 
-Official client libraries for [MailFlat](https://mailflat.net) — disposable, automation-friendly
-email inboxes with **one-line OTP retrieval**. Built for test suites (Selenium, pytest, Playwright)
-and AI agents.
+Official client libraries for [MailFlat](https://mailflat.net): email inboxes your code owns, with
+**one-line OTP retrieval**. Built for test suites (Selenium, pytest, Playwright) and AI agents.
+
+Addresses are **permanent**, so a suite does not need a fresh one per run. Only the messages
+expire, on a retention window you choose.
 
 > This repo holds only the open-source SDKs. The MailFlat service itself is closed-source.
 
@@ -68,4 +70,4 @@ const otp = await inbox.waitForOtp({ timeout: 30000 });
 
 ## License
 
-MIT — see each package directory.
+MIT. The full text is in `LICENSE` at the repository root; each package directory carries an identical copy.
