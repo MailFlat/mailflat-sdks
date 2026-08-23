@@ -2,8 +2,9 @@
 
 Native [Model Context Protocol](https://modelcontextprotocol.io) server for
 [MailFlat](https://mailflat.net). Gives Claude Desktop, Cursor, or any MCP client
-**disposable inbox tooling** — create inboxes, wait for OTP codes, send DKIM-signed mail,
-and clean up. Built on the [`mailflat`](https://pypi.org/project/mailflat/) Python SDK.
+**real inbox tooling**: create inboxes, wait for OTP codes, send DKIM-signed mail, and
+clean up when the task is done. Each address is permanent and stays until you delete it;
+only the messages inside expire, on a retention window you choose. Built on the [`mailflat`](https://pypi.org/project/mailflat/) Python SDK.
 
 ## Run
 
@@ -38,7 +39,7 @@ Get your API key from the [MailFlat dashboard](https://mailflat.net) → Agents.
 
 | Tool | What it does |
 |---|---|
-| `create_inbox(prefix?, label?, retention_hours?)` | Open a disposable inbox; `retention_hours` capped by your plan |
+| `create_inbox(prefix?, label?, retention_hours?)` | Open an inbox; `retention_hours` capped by your plan |
 | `list_inboxes()` | All inboxes this key can see |
 | `read_messages(address, direction="in")` | Read messages; received mail by default (`out` / `all` for the rest) |
 | `wait_for_otp(address, timeout=30)` | Poll until an OTP arrives, then return it |

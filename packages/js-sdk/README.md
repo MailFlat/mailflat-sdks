@@ -1,8 +1,10 @@
 # @mailflat/sdk
 
-Official TypeScript/JavaScript client for [MailFlat](https://mailflat.net): disposable,
-automation-friendly email inboxes with **one-line OTP retrieval**. Zero dependencies — uses
-the platform `fetch` (Node 18+, modern browsers, edge runtimes).
+Official TypeScript/JavaScript client for [MailFlat](https://mailflat.net): real email
+inboxes for AI agents and test suites, with **one-line OTP retrieval**. The address is
+permanent and stays until you delete it; only the messages inside expire, on a retention
+window you choose. Zero dependencies, uses the platform `fetch` (Node 18+, modern browsers,
+edge runtimes).
 
 ```bash
 npm i @mailflat/sdk
@@ -15,7 +17,7 @@ import { MailFlat } from "@mailflat/sdk";
 
 const mailflat = new MailFlat({ apiKey: process.env.MAILFLAT_API_KEY });
 
-// 1 · spin up a disposable inbox
+// 1 · open an inbox
 const inbox = await mailflat.create({ prefix: "signup-test", label: "checkout flow" });
 console.log(inbox.address); // → signup-test@x7k2m.mailflat.net
 

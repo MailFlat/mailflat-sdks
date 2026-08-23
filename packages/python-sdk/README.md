@@ -1,8 +1,10 @@
 # MailFlat — Python SDK
 
-Official Python client for [MailFlat](https://mailflat.net): disposable, automation-friendly
-email inboxes with **one-line OTP retrieval**. Spin up a real inbox, read the verification
-code your app just sent, and move on — one call instead of a hand-rolled poll loop, no shared mailbox state.
+Official Python client for [MailFlat](https://mailflat.net): real email inboxes for AI
+agents and test suites, with **one-line OTP retrieval**. Open an inbox, read the verification
+code your app just sent, and move on. One call instead of a hand-rolled poll loop, no shared
+mailbox state. The address is permanent and stays until you delete it; only the messages
+inside expire, on a retention window you choose.
 
 ```bash
 pip install mailflat
@@ -15,7 +17,7 @@ from mailflat import MailFlat
 
 mf = MailFlat(api_key="mf_live_...")  # or set MAILFLAT_API_KEY
 
-# 1 · spin up a disposable inbox
+# 1 · open an inbox
 inbox = mf.create(prefix="signup-test", label="checkout flow")
 print(inbox.address)            # → signup-test@x7k2m.mailflat.net
 

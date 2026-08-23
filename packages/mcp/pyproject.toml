@@ -8,12 +8,12 @@ name = "mailflat-mcp"
 # [tool.hatch.version]). Never add a second `version = ...` here — that was exactly B-052
 # (0.2.1 published while the package reported "0.1.0").
 dynamic = ["version"]
-description = "MailFlat MCP server — disposable inbox tools (create, wait_for_otp, send, ...) for Claude Desktop, Cursor, and any MCP client."
+description = "MCP server that gives an AI agent real email inboxes: create, wait_for_otp, send and more, for Claude Desktop, Cursor and any MCP client."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "MailFlat", email = "support@mailflat.net" }]
-keywords = ["mcp", "model-context-protocol", "email", "disposable-email", "otp", "ai-agents", "claude", "cursor"]
+keywords = ["ai-agents", "mcp", "model-context-protocol", "email-api", "otp", "claude", "cursor", "email"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

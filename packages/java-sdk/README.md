@@ -1,7 +1,8 @@
 # MailFlat Java SDK
 
-Official Java client for [MailFlat](https://mailflat.net): disposable, automation-friendly email
-inboxes with **one-line OTP retrieval**. Built for **Selenium / JUnit** test suites. HTTP via the
+Official Java client for [MailFlat](https://mailflat.net): real email inboxes for AI agents
+and test suites, with **one-line OTP retrieval**. The address is permanent and stays until you
+delete it; only the messages inside expire. Built for **Selenium / JUnit** test suites. HTTP via the
 built-in `java.net.http` (no HTTP dependency); JSON via Jackson.
 
 > Java 11+ · published via [JitPack](https://jitpack.io).
@@ -35,7 +36,7 @@ import net.mailflat.Inbox;
 
 MailFlat mf = new MailFlat("mf_live_…");          // or set MAILFLAT_API_KEY
 
-Inbox inbox = mf.create("signup");                // open a disposable inbox
+Inbox inbox = mf.create("signup");                // open an inbox
 System.out.println(inbox.address());              // → signup-8f3@x7k2m.mailflat.net
 
 // ... your app/browser submits the form using inbox.address() ...

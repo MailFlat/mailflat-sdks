@@ -1,16 +1,17 @@
 {
   "name": "create-mailflat",
   "version": "0.2.4",
-  "description": "Scaffold a working email-testing project — Playwright, Vitest or pytest — wired to a real MailFlat inbox.",
+  "description": "Scaffold a working email-testing project (Playwright, Vitest or pytest) wired to a real MailFlat inbox.",
   "keywords": [
-    "email",
     "email-testing",
     "otp",
     "playwright",
     "vitest",
     "pytest",
     "scaffold",
-    "create"
+    "create",
+    "ai-agents",
+    "email"
   ],
   "license": "MIT",
   "author": "MailFlat <support@mailflat.net>",

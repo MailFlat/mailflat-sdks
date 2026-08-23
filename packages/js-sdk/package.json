@@ -1,15 +1,17 @@
 {
   "name": "@mailflat/sdk",
   "version": "0.7.0",
-  "description": "Official TypeScript/JavaScript SDK for MailFlat — disposable, automation-friendly email inboxes with one-line OTP retrieval.",
+  "description": "Real email inboxes for AI agents and test suites, from TypeScript or JavaScript. Create one from code, wait for the one-time code, keep the address as long as you need.",
   "keywords": [
-    "email",
-    "disposable-email",
+    "ai-agents",
+    "email-api",
     "otp",
     "automation",
     "testing",
-    "ai-agents",
-    "temporary-email"
+    "permanent-email",
+    "disposable-email",
+    "temporary-email",
+    "email"
   ],
   "license": "MIT",
   "author": "MailFlat <support@mailflat.net>",

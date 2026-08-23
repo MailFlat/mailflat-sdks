@@ -1,8 +1,9 @@
 # @mailflat/ai-sdk
 
 [MailFlat](https://mailflat.net) tool suite for the [Vercel AI SDK](https://sdk.vercel.ai).
-Give any model real, working disposable inboxes — it can create addresses, read mail, and
-pull one-time verification codes on its own.
+Give any model a real, working email inbox of its own. It can create addresses, read mail,
+and pull one-time verification codes without your help. Addresses are permanent; only the
+messages inside expire.
 
 ```bash
 npm i @mailflat/ai-sdk
@@ -34,7 +35,7 @@ both the v3/v4 (`parameters`) and v5 (`inputSchema`) tool shapes — no version 
 
 | Tool | What it does |
 |---|---|
-| `createInbox` | Create a disposable inbox → returns its address. `{ prefix?, label?, retentionHours? }` |
+| `createInbox` | Open an inbox → returns its address. `{ prefix?, label?, retentionHours? }` |
 | `listInboxes` | List inboxes available to this API key. |
 | `readMessages` | Read messages in an inbox (newest first). `{ address, direction? }` — received mail by default |
 | `waitForOtp` | Poll until an OTP arrives, then return it. `{ address, timeout? }` (ms) |

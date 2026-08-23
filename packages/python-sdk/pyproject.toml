@@ -8,12 +8,12 @@ name = "mailflat"
 # [tool.hatch.version]). Hardcoding a `version = ...` here brings B-052 back: 0.3.1 was on
 # PyPI while the package itself reported `mailflat.__version__ == "0.3.0"`. Two sources drift.
 dynamic = ["version"]
-description = "Official Python SDK for MailFlat — disposable, automation-friendly email inboxes with one-line OTP retrieval."
+description = "Real email inboxes for AI agents and test suites. Create one from code, wait for the one-time code, keep the address as long as you need."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "MailFlat", email = "support@mailflat.net" }]
-keywords = ["email", "disposable-email", "otp", "automation", "testing", "ai-agents", "temporary-email"]
+keywords = ["ai-agents", "email-api", "otp", "automation", "testing", "permanent-email", "disposable-email", "temporary-email", "email"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
