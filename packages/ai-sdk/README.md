@@ -42,10 +42,13 @@ both the v3/v4 (`parameters`) and v5 (`inputSchema`) tool shapes — no version 
 | `waitForMessage` | Poll until a new message arrives; ignores mail you sent. `{ address, timeout? }` |
 | `sendEmail` | Send a DKIM-signed email from an inbox. `{ address, to, subject?, body?, html? }` |
 | `reply` | Answer a message **in the same conversation**; threading headers filled in. `{ address, messageId, body?, html? }` |
+| `waitUntilSent` | Did that mail actually go out? A timeout means still queued, not lost: do not send again. `{ address, messageId, timeout? }` |
 | `markRead` | Mark one message read so later polls skip it. `{ address, messageId }` |
 | `burnInbox` | Delete every message but KEEP the address. `{ address }` |
 | `deleteInbox` | Delete an inbox and all its messages. `{ address }` |
 | `deleteMessage` | Delete one message; the inbox itself stays. `{ address, messageId }` |
+| `listCalendarEvents` | Meetings from calendar invitations the inbox received, with this inbox's answer. `{ address, includeCancelled? }` |
+| `rsvpToInvite` | Accept, decline or tentatively accept an invitation; the organizer's calendar shows it. `{ address, eventId, response, comment? }` |
 
 > Reads default to **received** mail. Without that, an agent that sends to a peer and then
 > waits for the reply matches its own outgoing message immediately.

@@ -7,7 +7,8 @@
 //   - depends on: MailFlat (HTTP), Message, SendOptions, SendResult, exceptions, Jackson
 //
 // Key export: Inbox — address(), messages(), message(id), latest(), waitForOtp(),
-//                     send(to, SendOptions), waitUntilSent(), delete()
+//                     send(to, SendOptions), waitUntilSent(), delete(),
+//                     calendarEvents(), calendarEvent(id), rsvp(id, RsvpResponse)
 package net.mailflat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -359,6 +360,54 @@ public final class Inbox {
     public byte[] downloadAttachment(int messageId, int attachmentId) {
         return client.getBytes("/api/v1/inboxes/" + address + "/messages/" + messageId
                 + "/attachments/" + attachmentId);
+    }
+
+    // ---------------------------------------------------------------- calendar
+    /** Upcoming and past events on this inbox's calendar, soonest first (cancelled hidden). */
+    public List<CalendarEvent> calendarEvents() {
+        return calendarEvents(false);
+    }
+
+    /** Events on this inbox's calendar, built from the invitations it received. */
+    public List<CalendarEvent> calendarEvents(boolean includeCancelled) {
+        JsonNode res = client.get("/api/v1/inboxes/" + address
+                + "/calendar/events?include_cancelled=" + includeCancelled);
+        List<CalendarEvent> out = new ArrayList<>();
+        for (JsonNode e : res.path("events")) {
+            out.add(CalendarEvent.fromJson(e));
+        }
+        return out;
+    }
+
+    /** One event, current state (if the organizer moved it, the new time is here). */
+    public CalendarEvent calendarEvent(int eventId) {
+        return CalendarEvent.fromJson(
+                client.get("/api/v1/inboxes/" + address + "/calendar/events/" + eventId));
+    }
+
+    /** Answer an invitation. See {@link #rsvp(int, RsvpResponse, String)}. */
+    public JsonNode rsvp(int eventId, RsvpResponse response) {
+        return rsvp(eventId, response, null);
+    }
+
+    /**
+     * Answer an invitation, with an optional note for the organizer.
+     *
+     * <p>Sends a standard iCalendar REPLY email to the organizer, so their Google or Outlook
+     * calendar shows this inbox's answer. Returns {@code {ok, event, message_id, send_status}};
+     * the reply is queued like any send ({@code waitUntilSent(message_id)} confirms delivery).
+     * Never retried automatically: a retry after a lost response would answer twice.
+     */
+    public JsonNode rsvp(int eventId, RsvpResponse response, String comment) {
+        if (response == null) {
+            throw new IllegalArgumentException("response is required");
+        }
+        ObjectNode body = client.json().createObjectNode();
+        body.put("response", response.wire());
+        if (comment != null) {
+            body.put("comment", comment);
+        }
+        return client.post("/api/v1/inboxes/" + address + "/calendar/events/" + eventId + "/rsvp", body);
     }
 
     /** Delete this inbox and all its messages. Irreversible. */

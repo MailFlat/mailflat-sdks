@@ -1,4 +1,4 @@
-"""MailFlat LangChain integration — `MailFlatToolkit` plus a 12-tool LangChain tool set.
+"""MailFlat LangChain integration — `MailFlatToolkit` plus a 14-tool LangChain tool set.
 
 A thin LangChain shell over the `mailflat` SDK; all HTTP and behaviour live in the client.
 `langchain-core` is an optional dependency → `pip install mailflat[langchain]`.
@@ -8,7 +8,8 @@ Usage:
     toolkit = MailFlatToolkit(api_key=env("MAILFLAT_KEY"))
     tools = toolkit.get_tools()   # create_inbox, list_inboxes, read_messages, wait_for_otp,
                                   # wait_for_message, send_email, reply, wait_until_sent,
-                                  # mark_read, burn_inbox, delete_inbox, delete_message
+                                  # mark_read, burn_inbox, delete_inbox, delete_message,
+                                  # list_calendar_events, rsvp_to_invite
 
 ⚠️ Tool output goes through `redact_secrets()`: a per-inbox `api_key` must never reach the
 model's context (and from there LangSmith traces) — see B-055.
@@ -58,6 +59,10 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from .aio import AsyncMailFlat
+
+
+# The answers a calendar invitation accepts (same set as the REST API and MCP).
+_RSVP_RESPONSES = ("accepted", "declined", "tentative")
 
 
 class MailFlatToolkit:
@@ -290,6 +295,47 @@ class MailFlatToolkit:
             except MailFlatError as e:
                 return {"error": str(e)}
 
+        def list_calendar_events(address: str, include_cancelled: bool = False) -> dict:
+            """List the meetings on an inbox's calendar, soonest first.
+
+            Events come from calendar invitations the inbox received (Google Calendar,
+            Outlook, ...). Each has an `id`, `title`, `start`/`end` in UTC, `organizer`,
+            `status` (confirmed or cancelled) and `my_status` (this inbox's answer:
+            needs-action, accepted, declined or tentative). If the organizer moves a
+            meeting, it is updated in place and `my_status` goes back to needs-action.
+
+            Args:
+                address: The inbox address whose calendar to read.
+                include_cancelled: Also return cancelled meetings (hidden by default).
+            """
+            try:
+                events = client.inbox(address).calendar_events(include_cancelled=include_cancelled)
+                return redact_secrets({"ok": True, "events": events})
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        def rsvp_to_invite(address: str, event_id: int, response: str, comment: str = "") -> dict:
+            """Answer a calendar invitation: accepted, declined or tentative.
+
+            Sends a standard calendar reply email to the organizer, so their Google or
+            Outlook calendar shows your answer. Call it ONCE per answer; the reply is
+            queued like any email, so use wait_until_sent with the returned `message_id`
+            to confirm delivery.
+
+            Args:
+                address: The inbox address that received the invitation.
+                event_id: The event id, from list_calendar_events.
+                response: "accepted", "declined" or "tentative".
+                comment: Optional short note the organizer sees next to your answer.
+            """
+            if response not in _RSVP_RESPONSES:
+                return {"error": "response must be one of: accepted, declined, tentative"}
+            try:
+                return redact_secrets(client.inbox(address).rsvp(
+                    event_id, response, comment=comment or None))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
         funcs: list[Any] = [
             create_inbox,
             list_inboxes,
@@ -310,6 +356,8 @@ class MailFlatToolkit:
             # toolkit as the only model surface missing a tool that MCP and the Vercel AI
             # SDK have shipped since day 42.
             delete_message,
+            list_calendar_events,
+            rsvp_to_invite,
         ]
         # from_function derives args_schema from the type hints and docstring itself,
         # which side-steps the pydantic v1/v2 difference.
@@ -555,10 +603,53 @@ class AsyncMailFlatToolkit:
             except MailFlatError as e:
                 return {"error": str(e)}
 
+        async def list_calendar_events(address: str, include_cancelled: bool = False) -> dict:
+            """List the meetings on an inbox's calendar, soonest first.
+
+            Events come from calendar invitations the inbox received (Google Calendar,
+            Outlook, ...). Each has an `id`, `title`, `start`/`end` in UTC, `organizer`,
+            `status` (confirmed or cancelled) and `my_status` (this inbox's answer:
+            needs-action, accepted, declined or tentative). If the organizer moves a
+            meeting, it is updated in place and `my_status` goes back to needs-action.
+
+            Args:
+                address: The inbox address whose calendar to read.
+                include_cancelled: Also return cancelled meetings (hidden by default).
+            """
+            try:
+                events = await client.inbox(address).calendar_events(
+                    include_cancelled=include_cancelled)
+                return redact_secrets({"ok": True, "events": events})
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        async def rsvp_to_invite(address: str, event_id: int, response: str,
+                                 comment: str = "") -> dict:
+            """Answer a calendar invitation: accepted, declined or tentative.
+
+            Sends a standard calendar reply email to the organizer, so their Google or
+            Outlook calendar shows your answer. Call it ONCE per answer; the reply is
+            queued like any email, so use wait_until_sent with the returned `message_id`
+            to confirm delivery.
+
+            Args:
+                address: The inbox address that received the invitation.
+                event_id: The event id, from list_calendar_events.
+                response: "accepted", "declined" or "tentative".
+                comment: Optional short note the organizer sees next to your answer.
+            """
+            if response not in _RSVP_RESPONSES:
+                return {"error": "response must be one of: accepted, declined, tentative"}
+            try:
+                return redact_secrets(await client.inbox(address).rsvp(
+                    event_id, response, comment=comment or None))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
         coroutines: list[Any] = [
             create_inbox, list_inboxes, read_messages, wait_for_otp, wait_for_message,
             send_email, reply, wait_until_sent, mark_read, burn_inbox, delete_inbox,
-            delete_message,
+            delete_message, list_calendar_events, rsvp_to_invite,
         ]
         # `func=` is what StructuredTool derives the ARGUMENT SCHEMA from, even when the
         # async path is the real implementation. The stub therefore has to carry the

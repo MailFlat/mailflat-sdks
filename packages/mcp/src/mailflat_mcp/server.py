@@ -1,4 +1,4 @@
-"""MailFlat MCP server — a 12-tool set for GPT/Claude/Cursor/LangChain.
+"""MailFlat MCP server — a 14-tool set for GPT/Claude/Cursor/LangChain.
 
 A thin MCP shell over the `mailflat` Python SDK; HTTP and behaviour live in the SDK.
 Auth: `MAILFLAT_API_KEY` env var (the `mf_live_...` key from your dashboard).
@@ -36,6 +36,8 @@ Key exports (MCP tools):
   - burn_inbox(address)
   - delete_inbox(address)
   - delete_message(address, message_id)
+  - list_calendar_events(address, include_cancelled=False)
+  - rsvp_to_invite(address, event_id, response, comment?)
 """
 import os
 
@@ -304,6 +306,40 @@ def delete_message(address: str, message_id: int) -> dict:
     except MailFlatError as e:
         raise ToolError(str(e)) from e
 
+@mcp.tool()
+def list_calendar_events(address: str, include_cancelled: bool = False) -> dict:
+    """List the meetings on an inbox's calendar, soonest first.
+
+    Events come from calendar invitations this inbox received (Google Calendar, Outlook, ...).
+    Each has an `id`, `title`, `start`/`end` in UTC, `organizer`, `attendees`, `status`
+    ("confirmed" or "cancelled") and `my_status` (this inbox's answer: "needs-action",
+    "accepted", "declined" or "tentative"). If the organizer moves a meeting, the event is
+    updated in place and `my_status` goes back to "needs-action". Messages that carry an
+    invitation also show it under `calendar_event` in read_messages."""
+    try:
+        with _client() as c:
+            events = c.inbox(address).calendar_events(include_cancelled=include_cancelled)
+            return redact_secrets({"ok": True, "events": events})
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
+@mcp.tool()
+def rsvp_to_invite(address: str, event_id: int, response: str, comment: str = "") -> dict:
+    """Answer a calendar invitation: response is "accepted", "declined" or "tentative".
+
+    Sends a standard calendar reply email to the organizer, so their Google or Outlook
+    calendar shows your answer. `event_id` comes from list_calendar_events (or
+    `calendar_event.event_id` on a message). Call it ONCE per answer: the reply is queued like
+    any email; use wait_until_sent with the returned `message_id` to confirm delivery."""
+    if response not in ("accepted", "declined", "tentative"):
+        raise ToolError("response must be one of: accepted, declined, tentative")
+    try:
+        with _client() as c:
+            res = c.inbox(address).rsvp(event_id, response, comment=comment or None)
+            return redact_secrets(res)
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
 def _sentence_for(tool_name: str, exc: Exception) -> str:
     """Turn a pydantic argument error into the sentence style the REST API already uses.
 
@@ -321,7 +357,10 @@ def _sentence_for(tool_name: str, exc: Exception) -> str:
     errors = getattr(exc, "errors", None)
     details: list[str] = []
     if callable(errors):
-        for err in errors()[:3]:
+        # Unknown arguments FIRST: with three required fields missing, a plain [:3] cut the
+        # one error the model most needs to see (which name it made up) off the sentence.
+        ordered = sorted(errors(), key=lambda e: e.get("type") != "extra_forbidden")
+        for err in ordered[:3]:
             field = ".".join(str(p) for p in err.get("loc", ())) or "input"
             kind = err.get("type", "")
             if kind == "extra_forbidden":

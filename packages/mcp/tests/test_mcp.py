@@ -26,6 +26,8 @@ class FakeBackend:
         self.emails = {}    # address -> [serialized email]
         self.status_steps = []   # send_status handed out, one per single-message read
         self.deleted_messages = []   # (address, id) — proves a message DELETE really landed
+        self.events = {}    # address -> [calendar event] (plan 379)
+        self.rsvps = []     # every RSVP body that reached the server
 
     def handler(self, req: httpx.Request) -> httpx.Response:
         path = req.url.path
@@ -43,6 +45,8 @@ class FakeBackend:
         if method == "GET" and path == "/api/v1/inboxes":
             return httpx.Response(200, json={"ok": True, "inboxes": [
                 {"address": a, "via_api": True, **m} for a, m in self.inboxes.items()]})
+        if "/calendar/events" in path:
+            return self._calendar(method, path, req)
         if method == "GET" and path.endswith("/messages"):
             addr = path.split("/api/v1/inboxes/")[1].rsplit("/messages", 1)[0]
             return httpx.Response(200, json={"ok": True, "emails": self._filtered(addr, req)})
@@ -108,6 +112,31 @@ class FakeBackend:
             addr = path.split("/api/v1/inboxes/")[1]
             self.inboxes.pop(addr, None)
             return httpx.Response(200, json={"ok": True, "message": "Inbox deleted"})
+        return httpx.Response(404, json={"detail": "not found"})
+
+    def _calendar(self, method: str, path: str, req: httpx.Request) -> httpx.Response:
+        """The real calendar contract: cancelled hidden by default, RSVP answers 202, a
+        cancelled event refuses an answer with 400, an unknown id is 404."""
+        import json
+        addr, _, tail = path.split("/api/v1/inboxes/")[1].partition("/calendar/events")
+        events = self.events.get(addr, [])
+        if method == "GET" and tail == "":
+            show_all = req.url.params.get("include_cancelled") == "true"
+            return httpx.Response(200, json={"events": [
+                e for e in events if show_all or e["status"] != "cancelled"]})
+        if method == "POST" and tail.endswith("/rsvp"):
+            eid = int(tail.strip("/").split("/")[0])
+            body = json.loads(req.content or b"{}")
+            self.rsvps.append(body)
+            for e in events:
+                if e["id"] == eid:
+                    if e["status"] == "cancelled":
+                        return httpx.Response(400, json={
+                            "detail": "This event was cancelled by the organizer"})
+                    e["my_status"] = body["response"]
+                    return httpx.Response(202, json={"ok": True, "event": e,
+                                                     "message_id": 555, "send_status": "queued"})
+            return httpx.Response(404, json={"detail": "Event not found"})
         return httpx.Response(404, json={"detail": "not found"})
 
     def _filtered(self, addr: str, req: httpx.Request) -> list:
@@ -289,7 +318,7 @@ def test_mcp_tools_registered():
     assert names == {"create_inbox", "list_inboxes", "read_messages",
                      "wait_for_otp", "wait_for_message", "send_email", "reply",
                      "wait_until_sent", "mark_read", "burn_inbox", "delete_inbox",
-                     "delete_message"}
+                     "delete_message", "list_calendar_events", "rsvp_to_invite"}
 
 
 # --------------------------------------------------------------- wait_until_sent
@@ -480,3 +509,48 @@ def test_every_tool_is_callable_and_refuses_unknown_arguments():
             assert leak not in message, f"{tool.name}: leaked {leak!r} -> {message[:120]}"
 
 
+
+
+# ============================================== calendar (plan 379)
+def _event(eid, status="confirmed"):
+    return {"id": eid, "uid": f"u{eid}@google.com", "title": f"Meeting {eid}",
+            "start": "2026-10-01T14:00:00Z", "status": status, "my_status": "needs-action",
+            "organizer": {"email": "jane@example.com", "name": "Jane"}}
+
+
+def test_list_calendar_events_through_the_call_path(patched):
+    """Called through MCP (not the Python function) so the published schema is exercised."""
+    import asyncio
+    import json
+    patched.events[ADDR] = [_event(1), _event(2, status="cancelled")]
+
+    def call(args):
+        blocks = asyncio.run(server.mcp.call_tool("list_calendar_events", args))
+        content = blocks[0] if isinstance(blocks, tuple) else blocks
+        return json.loads(content[0].text)
+
+    assert [e["id"] for e in call({"address": ADDR})["events"]] == [1]
+    assert [e["id"] for e in call({"address": ADDR, "include_cancelled": True})["events"]] == [1, 2]
+
+
+def test_rsvp_to_invite_answers_once_and_reports_the_reply(patched):
+    patched.events[ADDR] = [_event(1)]
+    res = server.rsvp_to_invite(ADDR, 1, "accepted", comment="See you")
+    assert res["event"]["my_status"] == "accepted" and res["message_id"] == 555
+    assert patched.rsvps == [{"response": "accepted", "comment": "See you"}]
+    # No comment -> the field is not sent at all (the wire says what the caller said).
+    server.rsvp_to_invite(ADDR, 1, "declined")
+    assert patched.rsvps[-1] == {"response": "declined"}
+
+
+def test_rsvp_rejects_an_unknown_answer_before_any_request(patched):
+    patched.events[ADDR] = [_event(1)]
+    with pytest.raises(ToolError, match="accepted, declined, tentative"):
+        server.rsvp_to_invite(ADDR, 1, "maybe")
+    assert patched.rsvps == [], "an invalid answer reached the server"
+
+
+def test_rsvp_to_a_cancelled_event_raises_with_the_reason(patched):
+    patched.events[ADDR] = [_event(1, status="cancelled")]
+    with pytest.raises(ToolError, match="cancelled by the organizer"):
+        server.rsvp_to_invite(ADDR, 1, "accepted")

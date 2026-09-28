@@ -1,6 +1,6 @@
-// MailFlat tool suite for the Vercel AI SDK — 12 tools: createInbox, listInboxes,
+// MailFlat tool suite for the Vercel AI SDK — 14 tools: createInbox, listInboxes,
 // readMessages, waitForOtp, waitForMessage, sendEmail, reply, waitUntilSent, markRead,
-// burnInbox, deleteInbox, deleteMessage.
+// burnInbox, deleteInbox, deleteMessage, listCalendarEvents, rsvpToInvite.
 //
 // (This header used to list ten of them, silently dropping `reply`. A comment that
 // miscounts the file it sits on top of is how a stale number survives for months, so the
@@ -399,6 +399,39 @@ export function mailflatToolSuite(options: ToolSuiteOptions = {}): Record<string
         messageId: z.number().describe("The id of the message to delete."),
       }),
       ({ address, messageId }) => guarded(() => client.inbox(address).deleteMessage(messageId)),
+    ),
+
+    listCalendarEvents: defineTool(
+      "List the meetings on an inbox's calendar, soonest first. Events come from calendar invitations the inbox received (Google Calendar, Outlook, ...). Each has an `id`, `title`, `start`/`end` in UTC, `organizer`, `status` (confirmed or cancelled) and `my_status` (this inbox's answer: needs-action, accepted, declined or tentative). If the organizer moves a meeting, it is updated in place and `my_status` goes back to needs-action.",
+      z.object({
+        address: z.string().describe("The inbox address whose calendar to read."),
+        includeCancelled: z
+          .boolean()
+          .optional()
+          .describe("Also return cancelled meetings (hidden by default)."),
+      }),
+      ({ address, includeCancelled }) =>
+        guarded(async () => {
+          const events = await client.inbox(address).calendarEvents({ includeCancelled });
+          return { events: events.map((e) => e.raw) };
+        }),
+    ),
+
+    rsvpToInvite: defineTool(
+      "Answer a calendar invitation. Sends a standard calendar reply email to the organizer, so their Google or Outlook calendar shows your answer. Call it ONCE per answer; the reply is queued like any email, so use waitUntilSent with the returned `message_id` to confirm delivery.",
+      z.object({
+        address: z.string().describe("The inbox address that received the invitation."),
+        eventId: z
+          .number()
+          .describe("The event id, from listCalendarEvents or `calendar_event.event_id` on a message."),
+        response: z.enum(["accepted", "declined", "tentative"]).describe("Your answer."),
+        comment: z.string().optional().describe("A short note the organizer sees next to your answer."),
+      }),
+      ({ address, eventId, response, comment }) =>
+        guarded(async () => {
+          const res = await client.inbox(address).rsvp(eventId, response, { comment });
+          return res.raw;
+        }),
     ),
   };
 }

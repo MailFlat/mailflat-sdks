@@ -28,6 +28,12 @@ export type {
   WaitOptions,
   SendOptions,
   OutgoingAttachment,
+  CalendarEvent,
+  CalendarInvite,
+  CalendarPerson,
+  RsvpResponse,
+  RsvpOptions,
+  RsvpResult,
 } from "./types";
 export {
   MailFlatError,

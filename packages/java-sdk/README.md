@@ -17,7 +17,7 @@ built-in `java.net.http` (no HTTP dependency); JSON via Jackson.
 <dependency>
   <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
-  <version>v0.4.5</version>
+  <version>v0.5.0</version>
 </dependency>
 ```
 
@@ -25,7 +25,7 @@ Gradle:
 
 ```groovy
 repositories { maven { url 'https://jitpack.io' } }
-dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.4.5' }
+dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.5.0' }
 ```
 
 ## Quickstart
@@ -139,6 +139,23 @@ Message sent = inbox.waitUntilSent(r);        // or waitUntilSent(messageId, sec
 
 Prefer the `message.delivered` / `message.failed` webhook when you can receive one;
 `waitUntilSent` is the pull half of the same contract, for places that cannot (local CI).
+
+### Calendar invitations
+
+An invitation sent to an inbox (Google Calendar, Outlook, ...) becomes an event on that
+inbox's calendar. Times are UTC. Answer it and the organizer's calendar shows your answer:
+
+```java
+for (CalendarEvent e : inbox.calendarEvents()) {          // soonest first, cancelled hidden
+    System.out.println(e.title() + " " + e.start() + " " + e.myStatus());
+}
+JsonNode res = inbox.rsvp(eventId, RsvpResponse.ACCEPTED, "See you there");
+inbox.waitUntilSent(res.get("message_id").asInt());       // the reply is a queued email
+```
+
+`message.calendarEvent()` / `calendarEventId()` carry the invitation a message brought in. If
+the organizer moves the meeting, the event updates in place and `myStatus()` goes back to
+`needs-action`.
 
 ### `Message`
 `otp()`, `subject()`, `sender()`, `text()`, `html()`, `toAddress()`, `direction()`,

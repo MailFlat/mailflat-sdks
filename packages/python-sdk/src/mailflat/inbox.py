@@ -261,6 +261,11 @@ class Message:
     # Raw message headers (Message-ID lives here — needed for threading and dedup).
     # None on encrypted inboxes: headers carry the Subject, so they go inside the envelope.
     headers: dict[str, Any] | None = None
+    # Calendar invitation carried by this message, parsed ({uid, title, start, end, organizer,
+    # attendees, method, action, event_id, ...}), or None. `action` says what the invitation
+    # did to the inbox calendar: created / updated / cancelled / replied / unchanged.
+    # The event's CURRENT state lives in `Inbox.calendar_event(event_id)`.
+    calendar_event: dict[str, Any] | None = None
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
     # The Inbox this message came from (powers msg.delete()). Filled in by
     # Inbox.messages() / latest() / wait_*.
@@ -380,6 +385,7 @@ class Message:
             links=list(data.get("links") or []),
             spam=data.get("spam"),
             headers=data.get("headers"),
+            calendar_event=data.get("calendar_event"),
             raw=data,
         )
         msg.attachments = [Attachment.from_dict(a) for a in (data.get("attachments") or [])]
@@ -604,6 +610,37 @@ class Inbox:
         """
         return self._client._post(
             f"/api/v1/inboxes/{self.address}/messages/{message_id}/read", idempotent=True)
+
+    # ------------------------------------------------------------ calendar
+    def calendar_events(self, *, include_cancelled: bool = False) -> list[dict[str, Any]]:
+        """Events on this inbox's calendar, built from the invitations it received.
+
+        Sorted by start time. An event outlives the email that carried it: retention can
+        delete the invitation, the meeting stays. Cancelled events are hidden unless
+        `include_cancelled=True`.
+        """
+        flag = "true" if include_cancelled else "false"
+        res = self._client._get(
+            f"/api/v1/inboxes/{self.address}/calendar/events?include_cancelled={flag}")
+        return list(res.get("events") or [])
+
+    def calendar_event(self, event_id: int) -> dict[str, Any]:
+        """One event, current state (if the organizer moved it, the new time is here)."""
+        return self._client._get(f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}")
+
+    def rsvp(self, event_id: int, response: str, *, comment: str | None = None) -> dict[str, Any]:
+        """Answer an invitation: `"accepted"`, `"declined"` or `"tentative"`.
+
+        Sends a standard iCalendar REPLY email to the organizer, so their Google or Outlook
+        calendar shows this inbox's answer. Returns `{ok, event, message_id, send_status}`;
+        the reply is queued like any send (use `wait_until_sent(message_id)` to confirm).
+        Not retried automatically: a retry after a lost response would answer twice.
+        """
+        body: dict[str, Any] = {"response": response}
+        if comment is not None:
+            body["comment"] = comment
+        return self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/rsvp", json=body)
 
     def burn(self) -> dict[str, Any]:
         """Delete every message in this inbox and keep the address.

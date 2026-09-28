@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.MailFlat/mailflat-mcp",
+  "title": "MailFlat",
+  "description": "Real email inboxes for AI agents: open an address, read the one-time code, send mail.",
+  "version": "0.10.0",
+  "websiteUrl": "https://mailflat.net/docs/ai/mcp",
+  "repository": {
+    "url": "https://github.com/MailFlat/mailflat-sdks",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mailflat-mcp",
+      "version": "0.10.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MAILFLAT_API_KEY",
+          "description": "MailFlat API key. Create one in the dashboard under Agents.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "MAILFLAT_API_URL",
+          "description": "Override the API base URL. Defaults to https://mailflat.net.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

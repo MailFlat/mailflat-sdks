@@ -45,7 +45,7 @@ dependencies = [
     # Raised to 0.7.0 for `send(cc=..., bcc=...)`: with the old floor the resolver could pick
     # 0.6.1 and every send_email with a cc would die on TypeError — at RUNTIME, in the user's
     # agent, with our tests green (they run against local source, never the resolved version).
-    "mailflat>=0.11.0",
+    "mailflat>=0.12.0",
     # UPPER BOUND REQUIRED: `mcp` 2.0.0 REMOVED the `mcp.server.fastmcp` module that server.py
     # imports, so with an unbounded `mcp>=1.2` every new install pulled 2.0.0 and hit
     # `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`. It broke with no code

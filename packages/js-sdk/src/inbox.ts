@@ -1,6 +1,7 @@
 // Inbox — high-level operations on a single MailFlat inbox.
 //
-// Returned by the MailFlat client: read messages, wait for OTP, send, mark read, burn, delete.
+// Returned by the MailFlat client: read messages, wait for OTP, send, mark read, burn, delete,
+// and the calendar built from received invitations (calendarEvents / calendarEvent / rsvp).
 //
 // Connected to:
 //   - used by:    client.ts (creates it), user code
@@ -19,14 +20,19 @@ import type { MailFlat } from "./client";
 import { buildPayload, SEND_FIELDS } from "./payload";
 import {
   DIRECTIONS,
+  type CalendarEvent,
   type Direction,
   type Message,
   type OutgoingAttachment,
   type ReadOptions,
   type ReplyOptions,
+  type RsvpOptions,
+  type RsvpResponse,
+  type RsvpResult,
   type SendOptions,
   type WaitOptions,
   replySubject,
+  toCalendarEvent,
   toMessage,
 } from "./types";
 
@@ -379,6 +385,44 @@ export class Inbox {
   /** Mark one message as read, so the next poll can skip it. */
   async markRead(messageId: number): Promise<Record<string, any>> {
     return this.#client._post(`/api/v1/inboxes/${this.address}/messages/${messageId}/read`, {}, true);
+  }
+
+  /**
+   * Events on this inbox's calendar, soonest first, built from the invitations it received.
+   * An event outlives the email that carried it. Cancelled events are hidden unless
+   * `{ includeCancelled: true }`.
+   */
+  async calendarEvents(opts: { includeCancelled?: boolean } = {}): Promise<CalendarEvent[]> {
+    const flag = opts.includeCancelled ? "true" : "false";
+    const res = await this.#client._get(
+      `/api/v1/inboxes/${this.address}/calendar/events?include_cancelled=${flag}`);
+    return ((res.events as any[]) ?? []).map(toCalendarEvent);
+  }
+
+  /** One event, current state (if the organizer moved it, the new time is here). */
+  async calendarEvent(eventId: number): Promise<CalendarEvent> {
+    return toCalendarEvent(await this.#client._get(
+      `/api/v1/inboxes/${this.address}/calendar/events/${eventId}`));
+  }
+
+  /**
+   * Answer an invitation. Sends a standard iCalendar REPLY email to the organizer, so their
+   * Google or Outlook calendar shows this inbox's answer. The reply is queued like any send;
+   * pass `messageId` to `waitUntilSent()` to confirm delivery.
+   * Not retried automatically: a retry after a lost response would answer twice.
+   */
+  async rsvp(eventId: number, response: RsvpResponse, opts: RsvpOptions = {}): Promise<RsvpResult> {
+    const body: Record<string, any> = { response };
+    if (opts.comment !== undefined) body.comment = opts.comment;
+    const res = await this.#client._post(
+      `/api/v1/inboxes/${this.address}/calendar/events/${eventId}/rsvp`, body);
+    return {
+      ok: Boolean(res.ok),
+      event: toCalendarEvent(res.event ?? {}),
+      messageId: res.message_id,
+      sendStatus: res.send_status,
+      raw: res,
+    };
   }
 
   /** Delete every message in this inbox and keep the address. */

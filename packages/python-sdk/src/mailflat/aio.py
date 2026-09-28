@@ -243,6 +243,27 @@ class AsyncInbox:
         return await self._client._post(
             f"/api/v1/inboxes/{self.address}/messages/{message_id}/read", idempotent=True)
 
+    async def calendar_events(self, *, include_cancelled: bool = False) -> list[dict[str, Any]]:
+        """Events on this inbox's calendar (see `Inbox.calendar_events`)."""
+        flag = "true" if include_cancelled else "false"
+        res = await self._client._get(
+            f"/api/v1/inboxes/{self.address}/calendar/events?include_cancelled={flag}")
+        return list(res.get("events") or [])
+
+    async def calendar_event(self, event_id: int) -> dict[str, Any]:
+        """One event, current state."""
+        return await self._client._get(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}")
+
+    async def rsvp(self, event_id: int, response: str, *,
+                   comment: str | None = None) -> dict[str, Any]:
+        """Answer an invitation (see `Inbox.rsvp`). Not retried automatically."""
+        body: dict[str, Any] = {"response": response}
+        if comment is not None:
+            body["comment"] = comment
+        return await self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/rsvp", json=body)
+
     async def burn(self) -> dict[str, Any]:
         """Delete every message but keep the address."""
         return await self._client._post(f"/api/v1/inboxes/{self.address}/burn",

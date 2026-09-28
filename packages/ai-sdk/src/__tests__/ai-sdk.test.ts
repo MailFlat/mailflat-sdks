@@ -25,7 +25,7 @@ function makeSuite(handler: (url: string, init: RequestInit) => Response) {
 }
 
 describe("suite shape", () => {
-  it("exposes the 12 expected tools with matching parameters/inputSchema", () => {
+  it("exposes the 14 expected tools with matching parameters/inputSchema", () => {
     const { suite } = makeSuite(() => jsonResponse(200, {}));
     expect(Object.keys(suite).sort()).toEqual(
       [
@@ -41,6 +41,8 @@ describe("suite shape", () => {
         "burnInbox",
         "deleteInbox",
         "deleteMessage",
+        "listCalendarEvents",
+        "rsvpToInvite",
       ].sort(),
     );
     for (const tool of Object.values(suite)) {
@@ -294,6 +296,8 @@ function leakRuns(suite: Record<string, any>): Array<[string, Promise<any>]> {
     ["burnInbox", suite.burnInbox.execute({ address: ADDR })],
     ["deleteMessage", suite.deleteMessage.execute({ address: ADDR, messageId: 1 })],
     ["deleteInbox", suite.deleteInbox.execute({ address: ADDR })],
+    ["listCalendarEvents", suite.listCalendarEvents.execute({ address: ADDR })],
+    ["rsvpToInvite", suite.rsvpToInvite.execute({ address: ADDR, eventId: 1, response: "accepted" })],
   ];
 }
 
@@ -317,6 +321,9 @@ describe("secret redaction", () => {
       }
       if (url.includes("/latest")) {
         return jsonResponse(200, { ok: true, email: { id: 1, subject: "Verify", otp_code: "424242" } });
+      }
+      if (url.includes("/calendar/events?")) {
+        return jsonResponse(200, { events: [{ id: 1, uid: "u1", status: "confirmed", api_key: "mf_sk_in_an_event" }] });
       }
       return jsonResponse(200, { ok: true, api_key: "mf_sk_from_a_write_endpoint" });
     });
@@ -400,5 +407,59 @@ describe("unknown fields reach the server or are refused — never dropped", () 
     const { suite } = makeSuite(() => jsonResponse(200, { address: ADDR }));
     const res: any = await suite.createInbox.execute({ prefix: "ok", label: "fine" });
     expect(res.error).toBeFalsy();
+  });
+});
+
+// ---------------------------------------------------------------- calendar (plan 379)
+describe("calendar tools", () => {
+  const EVENT = { id: 7, uid: "abc@google.com", title: "Onboarding call", status: "confirmed",
+                  my_status: "needs-action", start: "2026-10-01T14:00:00Z", all_day: false };
+
+  it("listCalendarEvents returns the raw events and sends the flag", async () => {
+    const urls: string[] = [];
+    const { suite } = makeSuite((url) => {
+      urls.push(url);
+      return jsonResponse(200, { events: [EVENT] });
+    });
+    const out = await suite.listCalendarEvents.execute({ address: ADDR, includeCancelled: true });
+    expect(out).toEqual({ events: [EVENT] });
+    expect(urls).toEqual([
+      `https://mailflat.net/api/v1/inboxes/${ADDR}/calendar/events?include_cancelled=true`]);
+  });
+
+  it("rsvpToInvite posts the answer once and returns the server result", async () => {
+    const bodies: any[] = [];
+    const { suite, fetchMock } = makeSuite((url, init) => {
+      expect(url).toBe(`https://mailflat.net/api/v1/inboxes/${ADDR}/calendar/events/7/rsvp`);
+      bodies.push(JSON.parse(init.body as string));
+      return jsonResponse(202, { ok: true, event: { ...EVENT, my_status: "accepted" },
+                                 message_id: 99, send_status: "queued" });
+    });
+    const out = await suite.rsvpToInvite.execute({ address: ADDR, eventId: 7, response: "accepted" });
+    expect(out.message_id).toBe(99);
+    expect(out.event.my_status).toBe("accepted");
+    expect(bodies).toEqual([{ response: "accepted" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rsvpToInvite refuses an unknown answer before any request", async () => {
+    const { suite, fetchMock } = makeSuite(() => jsonResponse(202, {}));
+    const out = await suite.rsvpToInvite.execute({ address: ADDR, eventId: 7, response: "maybe" });
+    expect(out.error).toMatch(/Invalid arguments/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a cancelled event comes back as an error value the model can read", async () => {
+    const { suite } = makeSuite(() =>
+      jsonResponse(400, { detail: "This event was cancelled by the organizer" }));
+    const out = await suite.rsvpToInvite.execute({ address: ADDR, eventId: 7, response: "accepted" });
+    expect(out.error).toMatch(/cancelled by the organizer/);
+  });
+
+  it("an event carrying a key is redacted before it reaches the model", async () => {
+    const { suite } = makeSuite(() =>
+      jsonResponse(200, { events: [{ ...EVENT, api_key: "mf_sk_leak" }] }));
+    const out = await suite.listCalendarEvents.execute({ address: ADDR });
+    expect(JSON.stringify(out)).not.toContain("mf_sk_");
   });
 });

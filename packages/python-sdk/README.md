@@ -170,6 +170,26 @@ inbox.wait_until_sent(res["message_id"], timeout=120)   # raises if it failed
 For anything long-running, subscribe to the `message.delivered` / `message.failed`
 webhooks instead of polling.
 
+## Calendar invitations
+
+When someone sends a calendar invitation (Google Calendar, Outlook, ...) to an inbox, the
+invitation becomes an event on that inbox's calendar. Times are UTC. Answer it and the
+organizer's calendar shows your answer:
+
+```python
+for event in inbox.calendar_events():            # soonest first, cancelled hidden
+    print(event["title"], event["start"], event["my_status"])
+
+res = inbox.rsvp(event["id"], "accepted", comment="See you there")
+inbox.wait_until_sent(res["message_id"])          # the reply is a queued email
+```
+
+The message that carried the invitation has it under `message.calendar_event`, with `action`
+(`created`, `updated`, `cancelled`, `replied`, `unchanged`) and the `event_id`. If the
+organizer moves the meeting, the event is updated in place and `my_status` goes back to
+`needs-action`. Subscribe to the `calendar.*` webhook to hear about changes without polling.
+Encrypted inboxes are never read for invitations: an invitation carries content.
+
 ## Errors
 
 All errors subclass `MailFlatError`: `AuthenticationError` (401), `MailFlatPermissionError` (403,

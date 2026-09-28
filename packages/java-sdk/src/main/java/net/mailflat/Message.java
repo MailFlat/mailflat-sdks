@@ -6,7 +6,7 @@
 //
 // Key export: Message — getters (otp(), subject(), links(), attachments(), headers(),
 //             sendStatus(), ...) + header(name) + messageId() + replyToAddress()
-//             + reply(SendOptions) + markRead()
+//             + reply(SendOptions) + markRead() + calendarEvent() / calendarEventId()
 package net.mailflat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,6 +36,7 @@ public final class Message {
     private final List<Attachment> attachments;
     private final JsonNode spam;
     private final Map<String, String> headers;
+    private final JsonNode calendarEvent;
     private final JsonNode raw;
 
     private Inbox inbox;              // set by Inbox so reply()/markRead()/delete() work
@@ -60,6 +61,8 @@ public final class Message {
         JsonNode s = d.get("spam");
         this.spam = (s == null || s.isNull()) ? null : s;
         this.headers = readHeaders(d);
+        JsonNode cal = d.get("calendar_event");
+        this.calendarEvent = (cal == null || cal.isNull()) ? null : cal;
         this.raw = d;
     }
 
@@ -154,6 +157,19 @@ public final class Message {
 
     /** Raw message headers, or null on an encrypted inbox (headers carry the Subject). */
     public Map<String, String> headers() { return headers; }
+
+    /**
+     * The calendar invitation this message carries, parsed ({uid, title, start, end,
+     * organizer, attendees, method, action, event_id}), or null. {@code action} says what it
+     * did to the inbox calendar: created, updated, cancelled, replied or unchanged.
+     */
+    public JsonNode calendarEvent() { return calendarEvent; }
+
+    /** The id of the calendar event this message's invitation belongs to, or null. */
+    public Integer calendarEventId() {
+        return (calendarEvent != null && calendarEvent.hasNonNull("event_id"))
+                ? calendarEvent.get("event_id").asInt() : null;
+    }
 
     /** The full backend JSON for this email (escape hatch for fields not surfaced above). */
     public JsonNode raw()       { return raw; }

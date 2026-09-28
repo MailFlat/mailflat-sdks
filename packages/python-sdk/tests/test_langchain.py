@@ -60,6 +60,9 @@ def test_get_tools_returns_the_full_named_tool_set():
         "burn_inbox",
         "delete_inbox",
         "delete_message",
+        # plan 379: the calendar built from received invitations.
+        "list_calendar_events",
+        "rsvp_to_invite",
     }
     # delete_message used to be withheld here, with the rationale that "a model which can
     # delete single messages can destroy evidence of what it did". The list above refutes
@@ -367,3 +370,48 @@ def test_sdk_client_still_sees_the_key():
     toolkit = make_toolkit(handler)
     inbox = toolkit._client.create(label="sdk-side")
     assert inbox.api_key == "mf_sk_visible"
+
+
+# ------------------------------------------------------------------ calendar (plan 379)
+_EVENT = {"id": 7, "uid": "abc@google.com", "title": "Onboarding call",
+          "status": "confirmed", "my_status": "needs-action"}
+
+
+def test_list_calendar_events_tool():
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.url.path.endswith("/calendar/events")
+        assert req.url.params["include_cancelled"] == "true"
+        return httpx.Response(200, json={"events": [{**_EVENT, "api_key": "mf_sk_leak"}]})
+
+    out = _tools_by_name(make_toolkit(handler))["list_calendar_events"].invoke(
+        {"address": "a@x.mailflat.net", "include_cancelled": True})
+    assert out["events"][0]["uid"] == "abc@google.com"
+    assert "mf_sk_" not in json.dumps(out), "an event payload reached the model unredacted"
+
+
+def test_rsvp_tool_answers_once():
+    bodies = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.url.path.endswith("/calendar/events/7/rsvp")
+        bodies.append(json.loads(req.content))
+        return httpx.Response(202, json={"ok": True, "message_id": 9,
+                                         "event": {**_EVENT, "my_status": "accepted"}})
+
+    tool = _tools_by_name(make_toolkit(handler))["rsvp_to_invite"]
+    out = tool.invoke({"address": "a@x.mailflat.net", "event_id": 7, "response": "accepted"})
+    assert out["event"]["my_status"] == "accepted" and out["message_id"] == 9
+    assert bodies == [{"response": "accepted"}]
+
+
+def test_rsvp_tool_refuses_an_unknown_answer_before_any_request():
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req)
+        return httpx.Response(202, json={})
+
+    out = _tools_by_name(make_toolkit(handler))["rsvp_to_invite"].invoke(
+        {"address": "a@x.mailflat.net", "event_id": 7, "response": "maybe"})
+    assert "accepted, declined, tentative" in out["error"]
+    assert calls == []

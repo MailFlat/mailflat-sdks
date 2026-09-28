@@ -108,6 +108,23 @@ await inbox.waitUntilSent(res.message_id, { timeout: 120_000 });   // throws if 
 For anything long-running, subscribe to the `message.delivered` / `message.failed`
 webhooks instead of polling.
 
+### Calendar invitations
+
+An invitation sent to an inbox (Google Calendar, Outlook, ...) becomes an event on that
+inbox's calendar. Times are UTC. Answer it and the organizer's calendar shows your answer:
+
+```ts
+const [event] = await inbox.calendarEvents();      // soonest first, cancelled hidden
+console.log(event.title, event.start, event.myStatus);
+
+const res = await inbox.rsvp(event.id, "accepted", { comment: "See you there" });
+await inbox.waitUntilSent(res.messageId!);          // the reply is a queued email
+```
+
+`message.calendarEvent` carries the invitation a message brought in (`action`, `eventId`).
+If the organizer moves the meeting, the event updates in place and `myStatus` goes back to
+`needs-action`. Subscribe to the `calendar.*` webhook to hear about changes without polling.
+
 ### `Message`
 `.otp`, `.subject`, `.sender`, `.text`, `.html`, `.toAddress`, `.direction`, `.receivedAt`,
 `.links`, `.attachments`, `.spam`, `.headers`, `.isRead`, `.raw`.

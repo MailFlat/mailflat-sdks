@@ -60,6 +60,12 @@ export interface Message {
   spam?: SpamReport | null;
   /** Raw headers — Message-ID lives here (threading, dedup). Null on encrypted inboxes. */
   headers?: Record<string, any> | null;
+  /**
+   * The calendar invitation this message carries, parsed, or null. `action` says what it
+   * did to the inbox calendar (created / updated / cancelled / replied / unchanged); the
+   * event's CURRENT state is `inbox.calendarEvent(invite.eventId)`.
+   */
+  calendarEvent: CalendarInvite | null;
   raw: Record<string, any>; // the full backend payload
   /**
    * Look up a header case-insensitively, e.g. `msg.header("message-id")`.
@@ -86,6 +92,77 @@ export interface Message {
    * `References` headers Gmail and Outlook use to thread.
    */
   reply?: (body?: string, opts?: ReplyOptions) => Promise<Record<string, any>>;
+}
+
+/** A person on an invitation. `status` is their answer, lower-case (e.g. "needs-action"). */
+export interface CalendarPerson {
+  email: string;
+  name?: string | null;
+  status?: string;
+  role?: string;
+}
+
+/** What an inbox answers to an invitation. */
+export type RsvpResponse = "accepted" | "declined" | "tentative";
+
+/**
+ * An event on an inbox calendar, built from the invitations it received.
+ * Times are UTC (`2026-10-01T14:00:00Z`), or a plain date for all-day events.
+ */
+export interface CalendarEvent {
+  id: number;
+  uid: string;
+  title?: string | null;
+  start?: string | null;
+  end?: string | null;
+  allDay: boolean;
+  /** The organizer's time zone name, for display only (times are already UTC). */
+  timezone?: string | null;
+  location?: string | null;
+  description?: string | null;
+  organizer?: CalendarPerson | null;
+  attendees: CalendarPerson[];
+  /** "confirmed" | "tentative" | "cancelled" */
+  status: string;
+  /** This inbox's answer: "needs-action" | "accepted" | "declined" | "tentative". */
+  myStatus: string;
+  sequence: number;
+  recurring: boolean;
+  rrule?: string | null;
+  lastMessageId?: number | null;
+  respondedAt?: string | null;
+  raw: Record<string, any>;
+}
+
+/** The invitation summary attached to a message (`message.calendarEvent`). */
+export interface CalendarInvite {
+  uid: string;
+  /** iCalendar method: "REQUEST" | "CANCEL" | "REPLY" | "PUBLISH" … */
+  method: string;
+  /** created | updated | cancelled | replied | unchanged */
+  action: string;
+  eventId?: number | null;
+  title?: string | null;
+  start?: string | null;
+  end?: string | null;
+  allDay: boolean;
+  organizer?: CalendarPerson | null;
+  attendees: CalendarPerson[];
+  raw: Record<string, any>;
+}
+
+export interface RsvpOptions {
+  /** A short note the organizer sees next to your answer. */
+  comment?: string;
+}
+
+export interface RsvpResult {
+  ok: boolean;
+  event: CalendarEvent;
+  /** The queued reply email — pass it to `waitUntilSent()` to confirm delivery. */
+  messageId?: number;
+  sendStatus?: string;
+  raw: Record<string, any>;
 }
 
 export interface CreateInboxOptions {
@@ -248,9 +325,58 @@ export function toMessage(d: Record<string, any>): Message {
     spam: d.spam ?? null,
     headers,
     header,
+    calendarEvent: d.calendar_event ? toCalendarInvite(d.calendar_event) : null,
     messageId: header("message-id"),
     replyToAddress:
       parseAddress(header("reply-to")) ?? parseAddress(header("from")) ?? d.sender,
+    raw: d,
+  };
+}
+
+function toPeople(list: any): CalendarPerson[] {
+  return ((list as any[]) ?? []).map((p) => ({
+    email: p.email, name: p.name ?? null, status: p.status, role: p.role,
+  }));
+}
+
+/** Server calendar event (snake_case) → `CalendarEvent`. */
+export function toCalendarEvent(d: Record<string, any>): CalendarEvent {
+  return {
+    id: d.id,
+    uid: d.uid,
+    title: d.title ?? null,
+    start: d.start ?? null,
+    end: d.end ?? null,
+    allDay: Boolean(d.all_day),
+    timezone: d.timezone ?? null,
+    location: d.location ?? null,
+    description: d.description ?? null,
+    organizer: d.organizer ?? null,
+    attendees: toPeople(d.attendees),
+    status: d.status,
+    myStatus: d.my_status,
+    sequence: d.sequence ?? 0,
+    recurring: Boolean(d.recurring),
+    rrule: d.rrule ?? null,
+    lastMessageId: d.last_message_id ?? null,
+    respondedAt: d.responded_at ?? null,
+    raw: d,
+  };
+}
+
+/** Invitation summary on a message (snake_case) → `CalendarInvite`. */
+export function toCalendarInvite(d: Record<string, any>): CalendarInvite {
+  return {
+    uid: d.uid,
+    method: d.method,
+    action: d.action,
+    eventId: d.event_id ?? null,
+    title: d.title ?? null,
+    start: d.start ?? null,
+    end: d.end ?? null,
+    allDay: Boolean(d.all_day),
+    organizer: d.organizer ?? null,
+    attendees: toPeople(d.attendees),
     raw: d,
   };
 }
