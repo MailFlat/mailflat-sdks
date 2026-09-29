@@ -28,6 +28,7 @@ class FakeBackend:
         self.deleted_messages = []   # (address, id) — proves a message DELETE really landed
         self.events = {}    # address -> [calendar event] (plan 379)
         self.rsvps = []     # every RSVP body that reached the server
+        self.invites = []   # every create / update / cancel body (plan 379 Faz 2)
 
     def handler(self, req: httpx.Request) -> httpx.Response:
         path = req.url.path
@@ -136,6 +137,37 @@ class FakeBackend:
                     e["my_status"] = body["response"]
                     return httpx.Response(202, json={"ok": True, "event": e,
                                                      "message_id": 555, "send_status": "queued"})
+            return httpx.Response(404, json={"detail": "Event not found"})
+        if method == "POST" and tail == "":
+            body = json.loads(req.content or b"{}")
+            self.invites.append(("create", body))
+            ev = {"id": len(events) + 100, "uid": "new@mailflat.net", "title": body["title"],
+                  "start": body["start"], "status": "confirmed", "my_status": "accepted",
+                  "source": "outbound", "sequence": 0,
+                  "attendees": [{"email": a if isinstance(a, str) else a["email"],
+                                 "status": "needs-action"} for a in body["attendees"]]}
+            self.events.setdefault(addr, []).append(ev)
+            return httpx.Response(202, json={"ok": True, "event": ev, "message_id": 700,
+                                             "send_status": "queued"})
+        if method in ("PATCH", "POST") and tail.strip("/"):
+            eid = int(tail.strip("/").split("/")[0])
+            body = json.loads(req.content or b"{}")
+            kind = "cancel" if tail.endswith("/cancel") else "update"
+            self.invites.append((kind, body))
+            for e in events:
+                if e["id"] == eid:
+                    if e.get("source") != "outbound":
+                        return httpx.Response(403, json={"detail": "Only events created by "
+                                              "this inbox can be changed; answer it with rsvp instead."})
+                    if e["status"] == "cancelled":
+                        return httpx.Response(400, json={"detail": "This event is already cancelled"})
+                    e["sequence"] += 1
+                    if kind == "cancel":
+                        e["status"] = "cancelled"
+                    else:
+                        e.update({k: v for k, v in body.items() if k != "message"})
+                    return httpx.Response(202, json={"ok": True, "event": e, "message_id": 701,
+                                                     "send_status": "queued"})
             return httpx.Response(404, json={"detail": "Event not found"})
         return httpx.Response(404, json={"detail": "not found"})
 
@@ -318,7 +350,8 @@ def test_mcp_tools_registered():
     assert names == {"create_inbox", "list_inboxes", "read_messages",
                      "wait_for_otp", "wait_for_message", "send_email", "reply",
                      "wait_until_sent", "mark_read", "burn_inbox", "delete_inbox",
-                     "delete_message", "list_calendar_events", "rsvp_to_invite"}
+                     "delete_message", "list_calendar_events", "rsvp_to_invite",
+                     "create_calendar_event", "update_calendar_event", "cancel_calendar_event"}
 
 
 # --------------------------------------------------------------- wait_until_sent
@@ -554,3 +587,44 @@ def test_rsvp_to_a_cancelled_event_raises_with_the_reason(patched):
     patched.events[ADDR] = [_event(1, status="cancelled")]
     with pytest.raises(ToolError, match="cancelled by the organizer"):
         server.rsvp_to_invite(ADDR, 1, "accepted")
+
+
+# ============================================== calendar Faz 2: send invitations (plan 379)
+def test_create_calendar_event_sends_exactly_what_was_asked(patched):
+    """Empty optional arguments must NOT reach the wire: the server would read "" as a value."""
+    import asyncio
+    import json
+    blocks = asyncio.run(server.mcp.call_tool("create_calendar_event", {
+        "address": ADDR, "title": "Intro", "start": "2026-10-06T14:00:00-04:00",
+        "attendees": ["ali@example.org"], "optional_attendees": ["bea@example.org"],
+        "duration_minutes": 45}))
+    content = blocks[0] if isinstance(blocks, tuple) else blocks
+    res = json.loads(content[0].text)
+    assert res["event"]["source"] == "outbound" and res["message_id"] == 700
+    kind, body = patched.invites[-1]
+    assert kind == "create"
+    assert body == {"title": "Intro", "start": "2026-10-06T14:00:00-04:00",
+                    "duration_minutes": 45,
+                    "attendees": ["ali@example.org", {"email": "bea@example.org", "optional": True}]}
+
+
+def test_update_calendar_event_sends_only_the_changes(patched):
+    server.create_calendar_event(ADDR, "Intro", "2026-10-06T18:00:00Z", ["ali@example.org"])
+    eid = patched.events[ADDR][-1]["id"]
+    res = server.update_calendar_event(ADDR, eid, start="2026-10-07T18:00:00Z")
+    assert res["event"]["sequence"] == 1
+    assert patched.invites[-1] == ("update", {"start": "2026-10-07T18:00:00Z"})
+    with pytest.raises(ToolError, match="Nothing to change"):
+        server.update_calendar_event(ADDR, eid)
+
+
+def test_cancel_calendar_event_and_a_received_invite_is_refused(patched):
+    server.create_calendar_event(ADDR, "Intro", "2026-10-06T18:00:00Z", ["ali@example.org"])
+    eid = patched.events[ADDR][-1]["id"]
+    assert server.cancel_calendar_event(ADDR, eid)["event"]["status"] == "cancelled"
+    with pytest.raises(ToolError, match="already cancelled"):
+        server.cancel_calendar_event(ADDR, eid)
+    patched.events[ADDR].append(_event(9))            # an invitation this inbox RECEIVED
+    with pytest.raises(ToolError, match="rsvp"):
+        server.update_calendar_event(ADDR, 9, title="Hijack")
+

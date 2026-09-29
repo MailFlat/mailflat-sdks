@@ -63,6 +63,10 @@ def test_get_tools_returns_the_full_named_tool_set():
         # plan 379: the calendar built from received invitations.
         "list_calendar_events",
         "rsvp_to_invite",
+        # plan 379 phase 2: invitations this inbox organizes.
+        "create_calendar_event",
+        "update_calendar_event",
+        "cancel_calendar_event",
     }
     # delete_message used to be withheld here, with the rationale that "a model which can
     # delete single messages can destroy evidence of what it did". The list above refutes
@@ -415,3 +419,40 @@ def test_rsvp_tool_refuses_an_unknown_answer_before_any_request():
         {"address": "a@x.mailflat.net", "event_id": 7, "response": "maybe"})
     assert "accepted, declined, tentative" in out["error"]
     assert calls == []
+
+
+def test_create_calendar_event_tool_sends_only_given_fields():
+    bodies = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.method == "POST" and req.url.path.endswith("/calendar/events")
+        bodies.append(json.loads(req.content))
+        return httpx.Response(202, json={"ok": True, "message_id": 3,
+                                         "event": {**_EVENT, "api_key": "mf_sk_leak"}})
+
+    out = _tools_by_name(make_toolkit(handler))["create_calendar_event"].invoke({
+        "address": "a@x.mailflat.net", "title": "Intro", "start": "2026-10-06T18:00:00Z",
+        "attendees": ["ali@example.org"], "optional_attendees": ["bea@example.org"]})
+    assert out["message_id"] == 3
+    assert "mf_sk_" not in json.dumps(out), "the event payload reached the model unredacted"
+    assert bodies == [{"title": "Intro", "start": "2026-10-06T18:00:00Z",
+                       "attendees": ["ali@example.org",
+                                     {"email": "bea@example.org", "optional": True}]}]
+
+
+def test_update_and_cancel_tools():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.url.path.rsplit("/calendar/events", 1)[1],
+                     json.loads(req.content) if req.content else None))
+        return httpx.Response(202, json={"ok": True, "message_id": 4, "event": _EVENT})
+
+    tools = _tools_by_name(make_toolkit(handler))
+    tools["update_calendar_event"].invoke({"address": "a@x.mailflat.net", "event_id": 7,
+                                           "duration_minutes": 60})
+    tools["cancel_calendar_event"].invoke({"address": "a@x.mailflat.net", "event_id": 7})
+    empty = tools["update_calendar_event"].invoke({"address": "a@x.mailflat.net", "event_id": 7})
+    assert "Nothing to change" in empty["error"]
+    assert seen == [("PATCH", "/7", {"duration_minutes": 60}), ("POST", "/7/cancel", {})]
+

@@ -1,4 +1,5 @@
-"""Calendar surface (plan 379 phase 1): list events, read one, RSVP, message.calendar_event.
+"""Calendar surface (plan 379): list events, read one, RSVP, message.calendar_event, and
+phase 2: create / update / cancel invitations this inbox organizes.
 
 What these prove (behaviour, not shape):
   - Each method hits the exact server route, and the query flag is actually on the wire.
@@ -6,6 +7,9 @@ What these prove (behaviour, not shape):
     `"comment": null` would be accepted too, but the wire should say what the caller said).
   - RSVP is NOT retried on a gateway error: a retry after a lost response answers twice.
   - `Message.calendar_event` is parsed on both the sync and the async message types.
+  - Phase 2: create/update/cancel send exactly the given fields (no `null`s, no silently
+    dropped typo), are never retried (a retry would invite everyone twice), and the async
+    client hits the same routes with the same bodies.
 
 Connected to:
   - imports from: mailflat (SDK), httpx
@@ -125,3 +129,87 @@ def test_async_calendar_methods_hit_the_same_routes():
     asyncio.run(run())
     base = f"/api/v1/inboxes/{ADDR}/calendar/events"
     assert seen == [("GET", base), ("GET", f"{base}/7"), ("POST", f"{base}/7/rsvp")]
+
+
+# ------------------------------------------------------------ phase 2: invitations
+def _recorder(status=202):
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.url.path, json.loads(req.content) if req.content else None))
+        return httpx.Response(status, json={"ok": True, "message_id": 5,
+                                            "event": {**EVENT, "source": "outbound"}})
+    return seen, handler
+
+
+def test_create_update_cancel_send_exactly_the_given_fields():
+    seen, handler = _recorder()
+    ib = make_client(handler).inbox(ADDR)
+    ib.create_calendar_event("Intro", "2026-10-06T14:00:00-04:00",
+                             attendees=["ali@example.org", {"email": "bea@example.org",
+                                                            "optional": True}],
+                             duration_minutes=45)
+    ib.update_calendar_event(7, start="2026-10-07T14:00:00-04:00")
+    ib.cancel_calendar_event(7, message="Something came up")
+    ib.cancel_calendar_event(7)
+    base = f"/api/v1/inboxes/{ADDR}/calendar/events"
+    assert seen == [
+        ("POST", base, {"title": "Intro", "start": "2026-10-06T14:00:00-04:00",
+                        "attendees": ["ali@example.org",
+                                      {"email": "bea@example.org", "optional": True}],
+                        "duration_minutes": 45}),
+        ("PATCH", f"{base}/7", {"start": "2026-10-07T14:00:00-04:00"}),
+        ("POST", f"{base}/7/cancel", {"message": "Something came up"}),
+        ("POST", f"{base}/7/cancel", {}),
+    ]
+
+
+def test_update_refuses_a_typo_and_an_empty_change_before_any_request():
+    seen, handler = _recorder()
+    ib = make_client(handler).inbox(ADDR)
+    with pytest.raises(TypeError, match="starts"):
+        ib.update_calendar_event(7, starts="2026-10-07T14:00:00Z")
+    with pytest.raises(TypeError, match="at least one field"):
+        ib.update_calendar_event(7)
+    assert seen == []
+
+
+@pytest.mark.parametrize("call", [
+    lambda ib: ib.create_calendar_event("x", "2026-10-06T14:00:00Z", attendees=["a@b.co"]),
+    lambda ib: ib.update_calendar_event(7, title="y"),
+    lambda ib: ib.cancel_calendar_event(7),
+])
+def test_invitation_calls_are_not_retried(call):
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.url.path)
+        return httpx.Response(504, json={"detail": "gateway timeout"})
+
+    with pytest.raises(Exception):
+        call(make_client(handler, max_retries=3).inbox(ADDR))
+    assert len(calls) == 1, f"retried {len(calls)} times; every attendee would be emailed again"
+
+
+def test_async_invitation_methods_match_sync():
+    seen, handler = _recorder()
+
+    async def run():
+        http = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                 base_url="https://mailflat.net")
+        async with AsyncMailFlat(api_key="mf_test_x", http_client=http) as mf:
+            ib = mf.inbox(ADDR)
+            await ib.create_calendar_event("Intro", "2026-10-06T18:00:00Z",
+                                           attendees=["ali@example.org"])
+            await ib.update_calendar_event(7, title="Moved")
+            await ib.cancel_calendar_event(7)
+
+    asyncio.run(run())
+    base = f"/api/v1/inboxes/{ADDR}/calendar/events"
+    assert seen == [
+        ("POST", base, {"title": "Intro", "start": "2026-10-06T18:00:00Z",
+                        "attendees": ["ali@example.org"]}),
+        ("PATCH", f"{base}/7", {"title": "Moved"}),
+        ("POST", f"{base}/7/cancel", {}),
+    ]
+

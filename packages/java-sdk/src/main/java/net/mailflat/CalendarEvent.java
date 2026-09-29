@@ -1,11 +1,11 @@
-// CalendarEvent — one meeting on an inbox calendar, built from the invitations it received.
+// CalendarEvent — one meeting on an inbox calendar: an invitation it received, or one it organized.
 //
 // Connected to:
 //   - used by:    Inbox (calendarEvents / calendarEvent / rsvp), user code
 //   - depends on: Jackson JsonNode
 //
 // Key export: CalendarEvent — id(), uid(), title(), start(), end(), allDay(), organizerEmail(),
-//             status(), myStatus(), isCancelled(), attendees(), raw()
+//             status(), myStatus(), isCancelled(), attendees(), source(), organizerVerified(), raw()
 package net.mailflat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -55,6 +55,10 @@ public final class CalendarEvent {
     public boolean recurring()     { return raw.path("recurring").asBoolean(false); }
     public Integer lastMessageId() { return raw.hasNonNull("last_message_id")
                                             ? raw.get("last_message_id").asInt() : null; }
+    /** {@code "inbound"} (an invitation received) or {@code "outbound"} (a meeting organized here). */
+    public String source()         { return raw.hasNonNull("source") ? raw.get("source").asText() : "inbound"; }
+    /** The invitation's organizer was verified by a DKIM signature. */
+    public boolean organizerVerified() { return raw.path("organizer_verified").asBoolean(false); }
     /** Array of {email, name, status, role}. */
     public JsonNode attendees()    { return raw.path("attendees"); }
     /** The full backend JSON for this event. */

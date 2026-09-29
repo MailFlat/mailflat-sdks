@@ -43,6 +43,9 @@ describe("suite shape", () => {
         "deleteMessage",
         "listCalendarEvents",
         "rsvpToInvite",
+        "createCalendarEvent",
+        "updateCalendarEvent",
+        "cancelCalendarEvent",
       ].sort(),
     );
     for (const tool of Object.values(suite)) {
@@ -298,6 +301,10 @@ function leakRuns(suite: Record<string, any>): Array<[string, Promise<any>]> {
     ["deleteInbox", suite.deleteInbox.execute({ address: ADDR })],
     ["listCalendarEvents", suite.listCalendarEvents.execute({ address: ADDR })],
     ["rsvpToInvite", suite.rsvpToInvite.execute({ address: ADDR, eventId: 1, response: "accepted" })],
+    ["createCalendarEvent", suite.createCalendarEvent.execute({ address: ADDR, title: "t",
+      start: "2026-10-06T18:00:00Z", attendees: ["a@example.org"] })],
+    ["updateCalendarEvent", suite.updateCalendarEvent.execute({ address: ADDR, eventId: 1, title: "u" })],
+    ["cancelCalendarEvent", suite.cancelCalendarEvent.execute({ address: ADDR, eventId: 1 })],
   ];
 }
 
@@ -463,3 +470,51 @@ describe("calendar tools", () => {
     expect(JSON.stringify(out)).not.toContain("mf_sk_");
   });
 });
+
+// ------------------------------------------------ calendar phase 2 (plan 379)
+describe("calendar tools: meetings this inbox organizes", () => {
+  const OUT = { id: 8, uid: "n@mailflat.net", title: "Intro", status: "confirmed",
+                my_status: "accepted", source: "outbound", start: "2026-10-06T18:00:00Z" };
+
+  it("createCalendarEvent sends optional attendees as objects and returns the server result", async () => {
+    const bodies: any[] = [];
+    const { suite, fetchMock } = makeSuite((url, init) => {
+      expect(url).toBe(`https://mailflat.net/api/v1/inboxes/${ADDR}/calendar/events`);
+      bodies.push(JSON.parse(init.body as string));
+      return jsonResponse(202, { ok: true, event: OUT, message_id: 12, send_status: "queued" });
+    });
+    const out = await suite.createCalendarEvent.execute({ address: ADDR, title: "Intro",
+      start: "2026-10-06T18:00:00Z", attendees: ["ali@example.org"],
+      optionalAttendees: ["bea@example.org"], durationMinutes: 45 });
+    expect(out.message_id).toBe(12);
+    expect(bodies).toEqual([{ title: "Intro", start: "2026-10-06T18:00:00Z", duration_minutes: 45,
+      attendees: ["ali@example.org", { email: "bea@example.org", optional: true }] }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("updateCalendarEvent patches only the changes; an empty call is answered, not thrown", async () => {
+    const seen: any[] = [];
+    const { suite, fetchMock } = makeSuite((url, init) => {
+      seen.push([init.method, url, JSON.parse(init.body as string)]);
+      return jsonResponse(202, { ok: true, event: { ...OUT, sequence: 1 }, message_id: 13 });
+    });
+    await suite.updateCalendarEvent.execute({ address: ADDR, eventId: 8, timezone: "Europe/Istanbul" });
+    expect(seen).toEqual([["PATCH", `https://mailflat.net/api/v1/inboxes/${ADDR}/calendar/events/8`,
+      { timezone: "Europe/Istanbul" }]]);
+    const empty = await suite.updateCalendarEvent.execute({ address: ADDR, eventId: 8 });
+    expect(empty.error).toMatch(/Nothing to change/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancelCalendarEvent posts to /cancel", async () => {
+    const urls: string[] = [];
+    const { suite } = makeSuite((url) => {
+      urls.push(url);
+      return jsonResponse(202, { ok: true, event: { ...OUT, status: "cancelled" }, message_id: 14 });
+    });
+    const out = await suite.cancelCalendarEvent.execute({ address: ADDR, eventId: 8 });
+    expect(out.event.status).toBe("cancelled");
+    expect(urls).toEqual([`https://mailflat.net/api/v1/inboxes/${ADDR}/calendar/events/8/cancel`]);
+  });
+});
+

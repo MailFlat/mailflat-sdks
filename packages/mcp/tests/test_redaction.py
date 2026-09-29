@@ -43,7 +43,13 @@ def _calls(addr: str) -> dict:
         "delete_message": lambda: server.delete_message(addr, 1),
         "list_calendar_events": lambda: server.list_calendar_events(addr, include_cancelled=True),
         "rsvp_to_invite": lambda: server.rsvp_to_invite(addr, 1, "accepted"),
-        "delete_inbox": lambda: server.delete_inbox(addr),  # en sonda: kutuyu siler
+        "create_calendar_event": lambda: server.create_calendar_event(
+            addr, "Intro", "2026-10-06T18:00:00Z", ["ali@example.org"]),
+        # Event 1 carries a key and is marked as organized here, so update/cancel really
+        # return it (instead of a 403 that would make the scan pass for the wrong reason).
+        "update_calendar_event": lambda: server.update_calendar_event(addr, 1, title="Moved"),
+        "cancel_calendar_event": lambda: server.cancel_calendar_event(addr, 1),
+        "delete_inbox": lambda: server.delete_inbox(addr),  # last: removes the inbox
     }
 
 
@@ -62,8 +68,9 @@ def test_no_tool_output_contains_an_inbox_api_key(patched):
     patched.deliver(addr, sender="s", subject="Verify", body_text="code 111222", otp_code="111222")
     # A calendar event that (hypothetically) carries a key: the calendar tools must scrub it
     # like every other tool, not pass the backend payload through as-is.
-    patched.events[addr] = [{"id": 1, "uid": "u1", "status": "confirmed",
-                             "my_status": "needs-action", "api_key": INBOX_KEY_PREFIX + "leak"}]
+    patched.events[addr] = [{"id": 1, "uid": "u1", "status": "confirmed", "source": "outbound",
+                             "sequence": 0, "my_status": "needs-action",
+                             "api_key": INBOX_KEY_PREFIX + "leak"}]
 
     for name, call in _calls(addr).items():
         # Tools now RAISE on failure (MCP isError). An error message can leak just as easily

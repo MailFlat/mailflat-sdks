@@ -1,6 +1,6 @@
 {
   "name": "create-mailflat",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Scaffold a working email-testing project (Playwright, Vitest or pytest) wired to a real MailFlat inbox.",
   "keywords": [
     "email-testing",

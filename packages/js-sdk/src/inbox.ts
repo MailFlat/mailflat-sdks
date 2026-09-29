@@ -1,7 +1,8 @@
 // Inbox — high-level operations on a single MailFlat inbox.
 //
 // Returned by the MailFlat client: read messages, wait for OTP, send, mark read, burn, delete,
-// and the calendar built from received invitations (calendarEvents / calendarEvent / rsvp).
+// and the calendar: received invitations (calendarEvents / calendarEvent / rsvp) and meetings
+// this inbox organizes (createCalendarEvent / updateCalendarEvent / cancelCalendarEvent).
 //
 // Connected to:
 //   - used by:    client.ts (creates it), user code
@@ -21,6 +22,9 @@ import { buildPayload, SEND_FIELDS } from "./payload";
 import {
   DIRECTIONS,
   type CalendarEvent,
+  type CalendarEventInput,
+  type CalendarEventResult,
+  type CalendarEventUpdate,
   type Direction,
   type Message,
   type OutgoingAttachment,
@@ -37,6 +41,38 @@ import {
 } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** camelCase option → wire field. A key missing here is a typo and must not vanish silently. */
+const EVENT_FIELDS: Record<string, string> = {
+  title: "title", start: "start", end: "end", durationMinutes: "duration_minutes",
+  timezone: "timezone", allDay: "all_day", location: "location", description: "description",
+  message: "message", attendees: "attendees", inReplyTo: "in_reply_to",
+};
+const UPDATE_FIELDS = ["title", "start", "end", "durationMinutes", "timezone", "allDay",
+  "location", "description", "message"];
+
+function eventBody(input: Record<string, any>, allowed: string[], method: string) {
+  const unknown = Object.keys(input).filter((k) => !allowed.includes(k));
+  if (unknown.length) {
+    throw new TypeError(`${method}() got unexpected field(s): ${unknown.join(", ")}. `
+      + `Allowed: ${allowed.join(", ")}`);
+  }
+  const body: Record<string, any> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined && value !== null) body[EVENT_FIELDS[key]] = value;
+  }
+  return body;
+}
+
+function toEventResult(res: Record<string, any>): CalendarEventResult {
+  return {
+    ok: Boolean(res.ok),
+    event: toCalendarEvent(res.event ?? {}),
+    messageId: res.message_id,
+    sendStatus: res.send_status,
+    raw: res,
+  };
+}
 
 /**
  * Bytes → standard base64, without Node's Buffer.
@@ -403,6 +439,41 @@ export class Inbox {
   async calendarEvent(eventId: number): Promise<CalendarEvent> {
     return toCalendarEvent(await this.#client._get(
       `/api/v1/inboxes/${this.address}/calendar/events/${eventId}`));
+  }
+
+  /**
+   * Schedule a meeting and email the invitations; this inbox is the organizer. Attendees get
+   * a normal invitation with Yes / No / Maybe in Gmail, Outlook or Apple Calendar, and their
+   * answers update `event.attendees[].status` (webhook `calendar.attendee.responded`).
+   * Not retried automatically: a retry after a lost response would invite everyone twice.
+   */
+  async createCalendarEvent(input: CalendarEventInput): Promise<CalendarEventResult> {
+    const body = eventBody(input as Record<string, any>, Object.keys(EVENT_FIELDS),
+      "createCalendarEvent");
+    return toEventResult(await this.#client._post(
+      `/api/v1/inboxes/${this.address}/calendar/events`, body));
+  }
+
+  /**
+   * Change a meeting this inbox organized; attendees get the updated invitation. Pass only
+   * what changes. Moving `start` keeps the duration; a new time resets every attendee's
+   * answer to "needs-action". The same event is updated in their calendars (no duplicate).
+   */
+  async updateCalendarEvent(eventId: number, changes: CalendarEventUpdate): Promise<CalendarEventResult> {
+    const body = eventBody(changes as Record<string, any>, UPDATE_FIELDS, "updateCalendarEvent");
+    if (Object.keys(body).length === 0) {
+      throw new TypeError("updateCalendarEvent() needs at least one field to change");
+    }
+    return toEventResult(await this.#client._patch(
+      `/api/v1/inboxes/${this.address}/calendar/events/${eventId}`, body));
+  }
+
+  /** Cancel a meeting this inbox organized; it disappears from attendees' calendars. */
+  async cancelCalendarEvent(eventId: number, opts: { message?: string } = {}): Promise<CalendarEventResult> {
+    const body: Record<string, any> = {};
+    if (opts.message !== undefined) body.message = opts.message;
+    return toEventResult(await this.#client._post(
+      `/api/v1/inboxes/${this.address}/calendar/events/${eventId}/cancel`, body));
   }
 
   /**

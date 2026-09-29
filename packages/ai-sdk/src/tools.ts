@@ -1,6 +1,7 @@
-// MailFlat tool suite for the Vercel AI SDK — 14 tools: createInbox, listInboxes,
+// MailFlat tool suite for the Vercel AI SDK — 17 tools: createInbox, listInboxes,
 // readMessages, waitForOtp, waitForMessage, sendEmail, reply, waitUntilSent, markRead,
-// burnInbox, deleteInbox, deleteMessage, listCalendarEvents, rsvpToInvite.
+// burnInbox, deleteInbox, deleteMessage, listCalendarEvents, rsvpToInvite,
+// createCalendarEvent, updateCalendarEvent, cancelCalendarEvent.
 //
 // (This header used to list ten of them, silently dropping `reply`. A comment that
 // miscounts the file it sits on top of is how a stale number survives for months, so the
@@ -430,6 +431,76 @@ export function mailflatToolSuite(options: ToolSuiteOptions = {}): Record<string
       ({ address, eventId, response, comment }) =>
         guarded(async () => {
           const res = await client.inbox(address).rsvp(eventId, response, { comment });
+          return res.raw;
+        }),
+    ),
+
+    createCalendarEvent: defineTool(
+      "Schedule a meeting from this inbox and email the invitations (you are the organizer). Attendees get a normal invitation with Yes / No / Maybe buttons in Gmail, Outlook or Apple Calendar; their answers show up in listCalendarEvents under `attendees[].status`. Call it ONCE per meeting: it emails every attendee.",
+      z.object({
+        address: z.string().describe("The inbox that organizes the meeting."),
+        title: z.string().describe("Meeting title (also the invitation email's subject)."),
+        start: z
+          .string()
+          .describe('ISO 8601 with an offset, e.g. "2026-10-06T14:00:00-04:00", or without one plus `timezone`. For allDay, a date like "2026-10-06".'),
+        attendees: z.array(z.string()).describe("Email addresses to invite."),
+        optionalAttendees: z.array(z.string()).optional().describe("Emails invited as optional."),
+        end: z.string().optional().describe("End time (same format as start). All-day: exclusive end date."),
+        durationMinutes: z.number().optional().describe("Length instead of `end` (default 30)."),
+        timezone: z
+          .string()
+          .optional()
+          .describe('IANA zone such as "America/New_York" (needed if start has no offset).'),
+        allDay: z.boolean().optional().describe("True for an all-day event."),
+        location: z.string().optional().describe("Place or video link."),
+        description: z.string().optional().describe("Agenda shown in the calendar event."),
+        message: z.string().optional().describe("A short note at the top of the invitation email."),
+      }),
+      ({ address, attendees, optionalAttendees, ...rest }) =>
+        guarded(async () => {
+          const people = [...attendees, ...(optionalAttendees ?? []).map((email: string) => ({ email, optional: true }))];
+          const res = await client.inbox(address).createCalendarEvent({ ...rest, attendees: people });
+          return res.raw;
+        }),
+    ),
+
+    updateCalendarEvent: defineTool(
+      "Change a meeting this inbox organized; attendees get the updated invitation. Pass only what changes. Moving `start` keeps the duration; a new time resets every attendee's answer to needs-action. Invitations you received cannot be changed here: answer those with rsvpToInvite.",
+      z.object({
+        address: z.string().describe("The inbox that organized the meeting."),
+        eventId: z.number().describe("The event id, from listCalendarEvents or createCalendarEvent."),
+        title: z.string().optional().describe("New title."),
+        start: z.string().optional().describe("New start (ISO 8601 with offset, or plus `timezone`)."),
+        end: z.string().optional().describe("New end."),
+        durationMinutes: z.number().optional().describe("New length instead of `end`."),
+        timezone: z.string().optional().describe('IANA zone such as "America/New_York".'),
+        location: z.string().optional().describe("New place or video link."),
+        description: z.string().optional().describe("New agenda."),
+        message: z.string().optional().describe("A short note at the top of the update email."),
+      }),
+      async ({ address, eventId, ...changes }) => {
+        // Same answer as MCP / LangChain: a model's empty call gets a sentence back, not a
+        // thrown TypeError that would abort the whole generateText run.
+        if (!Object.values(changes).some((v) => v !== undefined && v !== "")) {
+          return { error: "Nothing to change: pass at least one field" };
+        }
+        return guarded(async () => {
+          const res = await client.inbox(address).updateCalendarEvent(eventId, changes);
+          return res.raw;
+        });
+      },
+    ),
+
+    cancelCalendarEvent: defineTool(
+      "Cancel a meeting this inbox organized; it disappears from every attendee's calendar.",
+      z.object({
+        address: z.string().describe("The inbox that organized the meeting."),
+        eventId: z.number().describe("The event id, from listCalendarEvents."),
+        message: z.string().optional().describe("A short note to attendees explaining the cancellation."),
+      }),
+      ({ address, eventId, message }) =>
+        guarded(async () => {
+          const res = await client.inbox(address).cancelCalendarEvent(eventId, { message });
           return res.raw;
         }),
     ),

@@ -38,6 +38,9 @@ Key exports (MCP tools):
   - delete_message(address, message_id)
   - list_calendar_events(address, include_cancelled=False)
   - rsvp_to_invite(address, event_id, response, comment?)
+- create_calendar_event(address, title, start, attendees, ...)   (plan 379 Faz 2)
+- update_calendar_event(address, event_id, ...)
+- cancel_calendar_event(address, event_id, message?)
 """
 import os
 
@@ -337,6 +340,66 @@ def rsvp_to_invite(address: str, event_id: int, response: str, comment: str = ""
         with _client() as c:
             res = c.inbox(address).rsvp(event_id, response, comment=comment or None)
             return redact_secrets(res)
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
+@mcp.tool()
+def create_calendar_event(address: str, title: str, start: str, attendees: list[str],
+                          end: str = "", duration_minutes: int = 0, timezone: str = "",
+                          all_day: bool = False, location: str = "", description: str = "",
+                          optional_attendees: list[str] | None = None, message: str = "",
+                          in_reply_to: str = "") -> dict:
+    """Schedule a meeting from this inbox and email the invitations (you are the organizer).
+
+    Attendees get a normal invitation with Yes / No / Maybe buttons in Gmail, Outlook or Apple
+    Calendar. Their answers show up in list_calendar_events under `attendees[].status`.
+    `start`: ISO 8601 with an offset ("2026-10-06T14:00:00-04:00"), or without one plus
+    `timezone` ("America/New_York"). Set `end` or `duration_minutes` (default 30 minutes).
+    For an all-day event set all_day=true and use dates ("2026-10-06"); `end` is exclusive.
+    `message` is a short note at the top of the invitation email. `in_reply_to` (a message's
+    Message-ID) threads the invitation under an email you already exchanged.
+    Call it ONCE per meeting: it emails every attendee. Normal send rules apply."""
+    people: list = list(attendees or []) + [
+        {"email": a, "optional": True} for a in (optional_attendees or [])]
+    try:
+        with _client() as c:
+            return redact_secrets(c.inbox(address).create_calendar_event(
+                title, start, attendees=people, end=end or None,
+                duration_minutes=duration_minutes or None, timezone=timezone or None,
+                all_day=all_day, location=location or None, description=description or None,
+                message=message or None, in_reply_to=in_reply_to or None))
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
+@mcp.tool()
+def update_calendar_event(address: str, event_id: int, title: str = "", start: str = "",
+                          end: str = "", duration_minutes: int = 0, timezone: str = "",
+                          location: str = "", description: str = "", message: str = "") -> dict:
+    """Change a meeting this inbox organized; attendees get the updated invitation.
+
+    Pass only what changes (empty = unchanged). Moving `start` keeps the duration. A new
+    time resets every attendee's answer to "needs-action" (they are asked again). The same
+    event is updated in their calendars, no duplicate. Invitations you RECEIVED cannot be
+    changed here; answer those with rsvp_to_invite."""
+    changes = {k: v for k, v in {
+        "title": title, "start": start, "end": end, "duration_minutes": duration_minutes,
+        "timezone": timezone, "location": location, "description": description,
+        "message": message}.items() if v}
+    if not changes:
+        raise ToolError("Nothing to change: pass at least one field")
+    try:
+        with _client() as c:
+            return redact_secrets(c.inbox(address).update_calendar_event(event_id, **changes))
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
+@mcp.tool()
+def cancel_calendar_event(address: str, event_id: int, message: str = "") -> dict:
+    """Cancel a meeting this inbox organized; it disappears from every attendee's calendar."""
+    try:
+        with _client() as c:
+            return redact_secrets(c.inbox(address).cancel_calendar_event(
+                event_id, message=message or None))
     except MailFlatError as e:
         raise ToolError(str(e)) from e
 

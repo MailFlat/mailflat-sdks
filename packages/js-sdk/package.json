@@ -1,6 +1,6 @@
 {
   "name": "@mailflat/sdk",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Real email inboxes for AI agents and test suites, from TypeScript or JavaScript. Create one from code, wait for the one-time code, keep the address as long as you need.",
   "keywords": [
     "ai-agents",

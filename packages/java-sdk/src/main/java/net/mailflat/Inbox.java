@@ -4,11 +4,14 @@
 //
 // Connected to:
 //   - used by:    MailFlat (creates it), user code
-//   - depends on: MailFlat (HTTP), Message, SendOptions, SendResult, exceptions, Jackson
+//   - depends on: MailFlat (HTTP), Message, SendOptions, SendResult, CalendarEventOptions,
+//                 exceptions, Jackson
 //
 // Key export: Inbox — address(), messages(), message(id), latest(), waitForOtp(),
 //                     send(to, SendOptions), waitUntilSent(), delete(),
-//                     calendarEvents(), calendarEvent(id), rsvp(id, RsvpResponse)
+//                     calendarEvents(), calendarEvent(id), rsvp(id, RsvpResponse),
+//                     createCalendarEvent(CalendarEventOptions), updateCalendarEvent(id, ...),
+//                     cancelCalendarEvent(id)
 package net.mailflat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -408,6 +411,49 @@ public final class Inbox {
             body.put("comment", comment);
         }
         return client.post("/api/v1/inboxes/" + address + "/calendar/events/" + eventId + "/rsvp", body);
+    }
+
+    /**
+     * Schedule a meeting and email the invitations; this inbox is the organizer.
+     *
+     * <p>Attendees get a normal invitation with Yes / No / Maybe in Gmail, Outlook or Apple
+     * Calendar; their answers update the event's {@code attendees[].status} and fire the
+     * {@code calendar.attendee.responded} webhook. Returns {@code {ok, event, message_id,
+     * send_status}}. Never retried automatically: a retry would invite everyone twice.
+     */
+    public JsonNode createCalendarEvent(CalendarEventOptions options) {
+        if (options == null) {
+            throw new IllegalArgumentException("options are required");
+        }
+        return client.post("/api/v1/inboxes/" + address + "/calendar/events",
+                options.toCreatePayload(client.json()));
+    }
+
+    /**
+     * Change a meeting this inbox organized; attendees get the updated invitation. Set only
+     * what changes. Moving the start keeps the duration; a new time resets every attendee's
+     * answer to {@code needs-action}. The same event is updated in their calendars.
+     */
+    public JsonNode updateCalendarEvent(int eventId, CalendarEventOptions changes) {
+        if (changes == null) {
+            throw new IllegalArgumentException("changes are required");
+        }
+        return client.patch("/api/v1/inboxes/" + address + "/calendar/events/" + eventId,
+                changes.toUpdatePayload(client.json()));
+    }
+
+    /** Cancel a meeting this inbox organized; it disappears from attendees' calendars. */
+    public JsonNode cancelCalendarEvent(int eventId) {
+        return cancelCalendarEvent(eventId, null);
+    }
+
+    /** Cancel with a short note to the attendees. */
+    public JsonNode cancelCalendarEvent(int eventId, String message) {
+        ObjectNode body = client.json().createObjectNode();
+        if (message != null) {
+            body.put("message", message);
+        }
+        return client.post("/api/v1/inboxes/" + address + "/calendar/events/" + eventId + "/cancel", body);
     }
 
     /** Delete this inbox and all its messages. Irreversible. */

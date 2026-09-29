@@ -190,6 +190,26 @@ organizer moves the meeting, the event is updated in place and `my_status` goes 
 `needs-action`. Subscribe to the `calendar.*` webhook to hear about changes without polling.
 Encrypted inboxes are never read for invitations: an invitation carries content.
 
+### Scheduling meetings
+
+The inbox can also be the organizer. Attendees get a normal invitation with Yes / No / Maybe
+buttons in Gmail, Outlook or Apple Calendar, and their answers land on the event:
+
+```python
+res = inbox.create_calendar_event(
+    "Intro call", "2026-10-06T14:00:00", timezone="America/New_York", duration_minutes=45,
+    attendees=["ali@example.com", {"email": "bea@example.com", "optional": True}])
+event_id = res["event"]["id"]
+
+inbox.update_calendar_event(event_id, start="2026-10-07T14:00:00-04:00")  # same event, new time
+inbox.cancel_calendar_event(event_id, message="Something came up")
+```
+
+A time without an offset needs `timezone`; nothing is guessed. Moving a meeting keeps its
+length and asks everyone again. `calendar.attendee.responded` fires when an attendee answers.
+Normal sending rules apply: on the Free plan without a verified domain, invitations only go
+to your own addresses.
+
 ## Errors
 
 All errors subclass `MailFlatError`: `AuthenticationError` (401), `MailFlatPermissionError` (403,

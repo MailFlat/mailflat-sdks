@@ -38,7 +38,7 @@ Authenticate with your account key (`mf_live_…`) from the dashboard (**Agents 
 <dependency>
   <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
-  <version>v0.5.0</version>
+  <version>v0.6.0</version>
 </dependency>
 ```
 

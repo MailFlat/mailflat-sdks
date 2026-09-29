@@ -53,6 +53,9 @@ Get your API key from the [MailFlat dashboard](https://mailflat.net) → Agents.
 | `delete_message(address, message_id)` | Delete one message; the inbox itself stays |
 | `list_calendar_events(address, include_cancelled=False)` | Meetings from calendar invitations the inbox received, with this inbox's answer (`my_status`) |
 | `rsvp_to_invite(address, event_id, response, comment?)` | Accept, decline or tentatively accept; the organizer's calendar shows the answer |
+| `create_calendar_event(address, title, start, attendees, ...)` | Schedule a meeting from the inbox and email the invitations (Yes / No / Maybe in the attendees' calendars) |
+| `update_calendar_event(address, event_id, ...)` | Move or edit a meeting the inbox organized; the same event updates in every calendar |
+| `cancel_calendar_event(address, event_id, message?)` | Cancel a meeting the inbox organized |
 
 > Reads return **received** mail by default. Without that, sending to a peer and then
 > waiting for the reply would immediately match your own outgoing message.

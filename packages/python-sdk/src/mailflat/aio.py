@@ -38,6 +38,7 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Sequence
 from typing import Any
 
 import httpx
@@ -46,8 +47,8 @@ from ._http import (backoff_delay, error_detail, interpret, retry_after_seconds,
                     send_timeout_message, should_retry)
 from .errors import (EncryptedInboxError, MailFlatError, OTPTimeoutError, SendFailedError,
                      SendTimeoutError, raise_for_status)
-from .inbox import (Attachment, Message, _check_direction, _reply_subject,
-                    _send_payload, otp_timeout_message)
+from .inbox import (Attachment, Message, _check_direction, _event_body, _reply_subject,
+                    _send_payload, _update_body, otp_timeout_message)
 
 DEFAULT_BASE_URL = "https://mailflat.net"
 
@@ -264,6 +265,34 @@ class AsyncInbox:
         return await self._client._post(
             f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/rsvp", json=body)
 
+    async def create_calendar_event(self, title: str, start: str, *,
+                                    attendees: Sequence[str | dict[str, Any]],
+                                    end: str | None = None, duration_minutes: int | None = None,
+                                    timezone: str | None = None, all_day: bool = False,
+                                    location: str | None = None, description: str | None = None,
+                                    message: str | None = None,
+                                    in_reply_to: str | None = None) -> dict[str, Any]:
+        """Schedule a meeting and email the invitations (see `Inbox.create_calendar_event`)."""
+        return await self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/events",
+            json=_event_body(title=title, start=start, attendees=list(attendees), end=end,
+                             duration_minutes=duration_minutes, timezone=timezone,
+                             all_day=all_day, location=location, description=description,
+                             message=message, in_reply_to=in_reply_to))
+
+    async def update_calendar_event(self, event_id: int, **changes: Any) -> dict[str, Any]:
+        """Change a meeting this inbox organized (see `Inbox.update_calendar_event`)."""
+        return await self._client._patch(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}",
+            json=_update_body(changes))
+
+    async def cancel_calendar_event(self, event_id: int, *,
+                                    message: str | None = None) -> dict[str, Any]:
+        """Cancel a meeting this inbox organized (see `Inbox.cancel_calendar_event`)."""
+        body = {"message": message} if message is not None else {}
+        return await self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/cancel", json=body)
+
     async def burn(self) -> dict[str, Any]:
         """Delete every message but keep the address."""
         return await self._client._post(f"/api/v1/inboxes/{self.address}/burn",
@@ -348,6 +377,10 @@ class AsyncMailFlat:
     async def _post(self, path: str, json: dict[str, Any] | None = None,
                     *, idempotent: bool = False) -> dict[str, Any]:
         return await self._request("POST", path, json=json or {}, idempotent=idempotent)
+
+    async def _patch(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
+        # Never retried: a calendar update re-sends the invitation to every attendee.
+        return await self._request("PATCH", path, json=json)
 
     async def _delete(self, path: str) -> dict[str, Any]:
         return await self._request("DELETE", path)

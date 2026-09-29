@@ -1,4 +1,4 @@
-"""MailFlat LangChain integration — `MailFlatToolkit` plus a 14-tool LangChain tool set.
+"""MailFlat LangChain integration — `MailFlatToolkit` plus a 17-tool LangChain tool set.
 
 A thin LangChain shell over the `mailflat` SDK; all HTTP and behaviour live in the client.
 `langchain-core` is an optional dependency → `pip install mailflat[langchain]`.
@@ -9,7 +9,9 @@ Usage:
     tools = toolkit.get_tools()   # create_inbox, list_inboxes, read_messages, wait_for_otp,
                                   # wait_for_message, send_email, reply, wait_until_sent,
                                   # mark_read, burn_inbox, delete_inbox, delete_message,
-                                  # list_calendar_events, rsvp_to_invite
+                                  # list_calendar_events, rsvp_to_invite,
+                                  # create_calendar_event, update_calendar_event,
+                                  # cancel_calendar_event
 
 ⚠️ Tool output goes through `redact_secrets()`: a per-inbox `api_key` must never reach the
 model's context (and from there LangSmith traces) — see B-055.
@@ -336,6 +338,91 @@ class MailFlatToolkit:
             except MailFlatError as e:
                 return {"error": str(e)}
 
+        def create_calendar_event(address: str, title: str, start: str, attendees: list[str],
+                                  end: str = "", duration_minutes: int = 0, timezone: str = "",
+                                  all_day: bool = False, location: str = "", description: str = "",
+                                  optional_attendees: list[str] | None = None,
+                                  message: str = "") -> dict:
+            """Schedule a meeting from this inbox and email the invitations (you are the organizer).
+
+            Attendees get a normal invitation with Yes / No / Maybe buttons in Gmail, Outlook
+            or Apple Calendar; their answers show up in list_calendar_events under
+            `attendees[].status`. Call it ONCE per meeting: it emails every attendee.
+
+            Args:
+                address: The inbox that organizes the meeting.
+                title: Meeting title (also the invitation email's subject).
+                start: ISO 8601 with an offset, e.g. "2026-10-06T14:00:00-04:00", or without
+                    one plus `timezone`. For all_day, a date like "2026-10-06".
+                attendees: Email addresses to invite.
+                end: Optional end time (same format as start). All-day: exclusive end date.
+                duration_minutes: Optional length instead of `end` (default 30).
+                timezone: IANA zone such as "America/New_York" (needed if start has no offset).
+                all_day: True for an all-day event.
+                location: Optional place or video link.
+                description: Optional agenda shown in the calendar event.
+                optional_attendees: Emails invited as optional.
+                message: Optional short note at the top of the invitation email.
+            """
+            people: list = list(attendees or []) + [
+                {"email": e, "optional": True} for e in (optional_attendees or [])]
+            try:
+                return redact_secrets(client.inbox(address).create_calendar_event(
+                    title, start, attendees=people, end=end or None,
+                    duration_minutes=duration_minutes or None, timezone=timezone or None,
+                    all_day=all_day, location=location or None,
+                    description=description or None, message=message or None))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        def update_calendar_event(address: str, event_id: int, title: str = "", start: str = "",
+                                  end: str = "", duration_minutes: int = 0, timezone: str = "",
+                                  location: str = "", description: str = "",
+                                  message: str = "") -> dict:
+            """Change a meeting this inbox organized; attendees get the updated invitation.
+
+            Pass only what changes (empty means unchanged). Moving `start` keeps the duration;
+            a new time resets every attendee's answer to needs-action. Invitations you
+            received cannot be changed here: answer those with rsvp_to_invite.
+
+            Args:
+                address: The inbox that organized the meeting.
+                event_id: The event id, from list_calendar_events or create_calendar_event.
+                title: New title.
+                start: New start (ISO 8601 with offset, or plus `timezone`).
+                end: New end.
+                duration_minutes: New length instead of `end`.
+                timezone: IANA zone such as "America/New_York".
+                location: New place or video link.
+                description: New agenda.
+                message: Optional note at the top of the update email.
+            """
+            changes = {k: v for k, v in {
+                "title": title, "start": start, "end": end, "duration_minutes": duration_minutes,
+                "timezone": timezone, "location": location, "description": description,
+                "message": message}.items() if v}
+            if not changes:
+                return {"error": "Nothing to change: pass at least one field"}
+            try:
+                return redact_secrets(client.inbox(address).update_calendar_event(
+                    event_id, **changes))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        def cancel_calendar_event(address: str, event_id: int, message: str = "") -> dict:
+            """Cancel a meeting this inbox organized; it disappears from attendees' calendars.
+
+            Args:
+                address: The inbox that organized the meeting.
+                event_id: The event id, from list_calendar_events.
+                message: Optional note to attendees explaining the cancellation.
+            """
+            try:
+                return redact_secrets(client.inbox(address).cancel_calendar_event(
+                    event_id, message=message or None))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
         funcs: list[Any] = [
             create_inbox,
             list_inboxes,
@@ -358,6 +445,9 @@ class MailFlatToolkit:
             delete_message,
             list_calendar_events,
             rsvp_to_invite,
+            create_calendar_event,
+            update_calendar_event,
+            cancel_calendar_event,
         ]
         # from_function derives args_schema from the type hints and docstring itself,
         # which side-steps the pydantic v1/v2 difference.
@@ -646,10 +736,96 @@ class AsyncMailFlatToolkit:
             except MailFlatError as e:
                 return {"error": str(e)}
 
+        async def create_calendar_event(address: str, title: str, start: str, attendees: list[str],
+                                  end: str = "", duration_minutes: int = 0, timezone: str = "",
+                                  all_day: bool = False, location: str = "", description: str = "",
+                                  optional_attendees: list[str] | None = None,
+                                  message: str = "") -> dict:
+            """Schedule a meeting from this inbox and email the invitations (you are the organizer).
+
+            Attendees get a normal invitation with Yes / No / Maybe buttons in Gmail, Outlook
+            or Apple Calendar; their answers show up in list_calendar_events under
+            `attendees[].status`. Call it ONCE per meeting: it emails every attendee.
+
+            Args:
+                address: The inbox that organizes the meeting.
+                title: Meeting title (also the invitation email's subject).
+                start: ISO 8601 with an offset, e.g. "2026-10-06T14:00:00-04:00", or without
+                    one plus `timezone`. For all_day, a date like "2026-10-06".
+                attendees: Email addresses to invite.
+                end: Optional end time (same format as start). All-day: exclusive end date.
+                duration_minutes: Optional length instead of `end` (default 30).
+                timezone: IANA zone such as "America/New_York" (needed if start has no offset).
+                all_day: True for an all-day event.
+                location: Optional place or video link.
+                description: Optional agenda shown in the calendar event.
+                optional_attendees: Emails invited as optional.
+                message: Optional short note at the top of the invitation email.
+            """
+            people: list = list(attendees or []) + [
+                {"email": e, "optional": True} for e in (optional_attendees or [])]
+            try:
+                return redact_secrets(await client.inbox(address).create_calendar_event(
+                    title, start, attendees=people, end=end or None,
+                    duration_minutes=duration_minutes or None, timezone=timezone or None,
+                    all_day=all_day, location=location or None,
+                    description=description or None, message=message or None))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        async def update_calendar_event(address: str, event_id: int, title: str = "", start: str = "",
+                                  end: str = "", duration_minutes: int = 0, timezone: str = "",
+                                  location: str = "", description: str = "",
+                                  message: str = "") -> dict:
+            """Change a meeting this inbox organized; attendees get the updated invitation.
+
+            Pass only what changes (empty means unchanged). Moving `start` keeps the duration;
+            a new time resets every attendee's answer to needs-action. Invitations you
+            received cannot be changed here: answer those with rsvp_to_invite.
+
+            Args:
+                address: The inbox that organized the meeting.
+                event_id: The event id, from list_calendar_events or create_calendar_event.
+                title: New title.
+                start: New start (ISO 8601 with offset, or plus `timezone`).
+                end: New end.
+                duration_minutes: New length instead of `end`.
+                timezone: IANA zone such as "America/New_York".
+                location: New place or video link.
+                description: New agenda.
+                message: Optional note at the top of the update email.
+            """
+            changes = {k: v for k, v in {
+                "title": title, "start": start, "end": end, "duration_minutes": duration_minutes,
+                "timezone": timezone, "location": location, "description": description,
+                "message": message}.items() if v}
+            if not changes:
+                return {"error": "Nothing to change: pass at least one field"}
+            try:
+                return redact_secrets(await client.inbox(address).update_calendar_event(
+                    event_id, **changes))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        async def cancel_calendar_event(address: str, event_id: int, message: str = "") -> dict:
+            """Cancel a meeting this inbox organized; it disappears from attendees' calendars.
+
+            Args:
+                address: The inbox that organized the meeting.
+                event_id: The event id, from list_calendar_events.
+                message: Optional note to attendees explaining the cancellation.
+            """
+            try:
+                return redact_secrets(await client.inbox(address).cancel_calendar_event(
+                    event_id, message=message or None))
+            except MailFlatError as e:
+                return {"error": str(e)}
+
         coroutines: list[Any] = [
             create_inbox, list_inboxes, read_messages, wait_for_otp, wait_for_message,
             send_email, reply, wait_until_sent, mark_read, burn_inbox, delete_inbox,
             delete_message, list_calendar_events, rsvp_to_invite,
+            create_calendar_event, update_calendar_event, cancel_calendar_event,
         ]
         # `func=` is what StructuredTool derives the ARGUMENT SCHEMA from, even when the
         # async path is the real implementation. The stub therefore has to carry the

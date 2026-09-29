@@ -23,6 +23,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from email.utils import parseaddr
@@ -176,6 +177,31 @@ def otp_timeout_message(address: str, timeout: float, seen: dict[str, Any] | Non
         + ". Read inbox.latest().text and parse the code yourself, "
         "and please report the format so we can support it."
     )
+
+
+# Fields `update_calendar_event` accepts; anything else is a typo and must not be dropped silently.
+_EVENT_UPDATE_FIELDS = ("title", "start", "end", "duration_minutes", "timezone", "all_day",
+                        "location", "description", "message")
+
+
+def _event_body(**fields: Any) -> dict[str, Any]:
+    """Request body for creating a calendar event. `None` means "not given" and is omitted."""
+    body = {k: v for k, v in fields.items() if v is not None}
+    if not fields.get("all_day"):
+        body.pop("all_day", None)
+    return body
+
+
+def _update_body(changes: dict[str, Any]) -> dict[str, Any]:
+    """Request body for `update_calendar_event`. Unknown keys raise instead of vanishing."""
+    unknown = sorted(set(changes) - set(_EVENT_UPDATE_FIELDS))
+    if unknown:
+        raise TypeError(f"update_calendar_event() got unexpected field(s): {', '.join(unknown)}. "
+                        f"Allowed: {', '.join(_EVENT_UPDATE_FIELDS)}")
+    body = {k: v for k, v in changes.items() if v is not None}
+    if not body:
+        raise TypeError("update_calendar_event() needs at least one field to change")
+    return body
 
 
 def _check_direction(direction: str) -> str:
@@ -641,6 +667,52 @@ class Inbox:
             body["comment"] = comment
         return self._client._post(
             f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/rsvp", json=body)
+
+    def create_calendar_event(self, title: str, start: str, *,
+                              attendees: Sequence[str | dict[str, Any]],
+                              end: str | None = None, duration_minutes: int | None = None,
+                              timezone: str | None = None, all_day: bool = False,
+                              location: str | None = None, description: str | None = None,
+                              message: str | None = None,
+                              in_reply_to: str | None = None) -> dict[str, Any]:
+        """Schedule a meeting and email the invitations. This inbox is the organizer.
+
+        Attendees get a normal invitation with Yes / No / Maybe buttons in Gmail, Outlook or
+        Apple Calendar; their answers update this event (`attendees[].status`) and fire the
+        `calendar.attendee.responded` webhook.
+
+        `start` is ISO 8601 with an offset (`"2026-10-06T14:00:00-04:00"`), or without one plus
+        `timezone` (`"America/New_York"`). Give `end` or `duration_minutes` (default 30).
+        All-day: `all_day=True`, dates only, `end` exclusive. An attendee is an email or
+        `{"email", "name", "optional"}`. `in_reply_to` threads the invitation under an email.
+
+        Returns `{ok, event, message_id, send_status}`; the invitation is queued like any send.
+        Not retried automatically: a retry after a lost response would invite everyone twice.
+        """
+        return self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/events",
+            json=_event_body(title=title, start=start, attendees=list(attendees), end=end,
+                             duration_minutes=duration_minutes, timezone=timezone,
+                             all_day=all_day, location=location, description=description,
+                             message=message, in_reply_to=in_reply_to))
+
+    def update_calendar_event(self, event_id: int, **changes: Any) -> dict[str, Any]:
+        """Change a meeting this inbox organized; attendees get the updated invitation.
+
+        Pass only what changes: `title`, `start`, `end`, `duration_minutes`, `timezone`,
+        `all_day`, `location`, `description`, `message`. The duration is kept when only `start`
+        moves. A new time resets every attendee's answer to `needs-action`. The same event
+        is updated in their calendars (no duplicate).
+        """
+        return self._client._patch(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}",
+            json=_update_body(changes))
+
+    def cancel_calendar_event(self, event_id: int, *, message: str | None = None) -> dict[str, Any]:
+        """Cancel a meeting this inbox organized; it disappears from attendees' calendars."""
+        body = {"message": message} if message is not None else {}
+        return self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/cancel", json=body)
 
     def burn(self) -> dict[str, Any]:
         """Delete every message in this inbox and keep the address.

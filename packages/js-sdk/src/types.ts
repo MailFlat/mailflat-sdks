@@ -131,6 +131,10 @@ export interface CalendarEvent {
   rrule?: string | null;
   lastMessageId?: number | null;
   respondedAt?: string | null;
+  /** "inbound" (an invitation this inbox received) | "outbound" (a meeting it organized). */
+  source: string;
+  /** The invitation's organizer was verified by a DKIM signature. */
+  organizerVerified: boolean;
   raw: Record<string, any>;
 }
 
@@ -160,6 +164,56 @@ export interface RsvpResult {
   ok: boolean;
   event: CalendarEvent;
   /** The queued reply email — pass it to `waitUntilSent()` to confirm delivery. */
+  messageId?: number;
+  sendStatus?: string;
+  raw: Record<string, any>;
+}
+
+/** Someone to invite: an email address, or an object to add a name or mark them optional. */
+export type CalendarAttendee = string | { email: string; name?: string; optional?: boolean };
+
+/**
+ * A meeting to schedule (`inbox.createCalendarEvent`). This inbox is the organizer.
+ *
+ * `start` is ISO 8601 with an offset (`"2026-10-06T14:00:00-04:00"`), or without one plus
+ * `timezone` (`"America/New_York"`). Give `end` or `durationMinutes` (default 30). All-day:
+ * `allDay: true` with dates, `end` exclusive.
+ */
+export interface CalendarEventInput {
+  title: string;
+  start: string;
+  attendees: CalendarAttendee[];
+  end?: string;
+  durationMinutes?: number;
+  timezone?: string;
+  allDay?: boolean;
+  location?: string;
+  description?: string;
+  /** A short note at the top of the invitation email. */
+  message?: string;
+  /** Message-ID of an email to thread the invitation under. */
+  inReplyTo?: string;
+}
+
+/** What to change on a meeting this inbox organized (`inbox.updateCalendarEvent`). */
+export interface CalendarEventUpdate {
+  title?: string;
+  start?: string;
+  end?: string;
+  durationMinutes?: number;
+  timezone?: string;
+  allDay?: boolean;
+  location?: string;
+  description?: string;
+  /** A short note at the top of the update email. */
+  message?: string;
+}
+
+/** Result of creating, updating or cancelling a meeting: the event plus the queued email. */
+export interface CalendarEventResult {
+  ok: boolean;
+  event: CalendarEvent;
+  /** The queued invitation email — pass it to `waitUntilSent()` to confirm delivery. */
   messageId?: number;
   sendStatus?: string;
   raw: Record<string, any>;
@@ -360,6 +414,8 @@ export function toCalendarEvent(d: Record<string, any>): CalendarEvent {
     rrule: d.rrule ?? null,
     lastMessageId: d.last_message_id ?? null,
     respondedAt: d.responded_at ?? null,
+    source: d.source ?? "inbound",
+    organizerVerified: Boolean(d.organizer_verified),
     raw: d,
   };
 }

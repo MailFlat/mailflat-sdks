@@ -177,6 +177,11 @@ public final class MailFlat {
         return request("POST", path, body, true);
     }
 
+    /** PATCH that is NEVER retried: a calendar update re-sends the invitation to everyone. */
+    JsonNode patch(String path, JsonNode body) {
+        return request("PATCH", path, body, false);
+    }
+
     JsonNode delete(String path) {
         return request("DELETE", path, null, false);
     }

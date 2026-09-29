@@ -1,11 +1,14 @@
-// Calendar surface (plan 379 phase 1) — the Java mirror of the Python/JS calendar tests.
+// Calendar surface (plan 379 phases 1-2) — the Java mirror of the Python/JS calendar tests.
 //
 // What these prove (behaviour, not shape):
 //   * each method hits the exact route, and include_cancelled is on the query string;
 //   * rsvp sends exactly what the caller said (no "comment": null when none was given);
 //   * rsvp is NEVER retried: a retry after a lost response answers the organizer twice;
 //   * Message.calendarEvent() / calendarEventId() read the invitation summary, and are null
-//     when a message carries no invitation.
+//     when a message carries no invitation;
+//   * phase 2: create/update/cancel send exactly the builder's fields in wire format, an
+//     update refuses attendees or an empty change before any request, and none of them is
+//     retried (a retry would invite everyone twice).
 //
 // Connected to:
 //   - imports from: net.mailflat (SDK), com.sun.net.httpserver, JUnit 5
@@ -147,5 +150,70 @@ class CalendarTest {
         assertNull(msgs.get(1).calendarEvent());
         assertNull(msgs.get(1).calendarEventId());
         assertTrue(msgs.get(0).raw().has("calendar_event"));
+    }
+
+    // ------------------------------------------------------------ phase 2: invitations
+    private static final String OUT = "{\"ok\":true,\"message_id\":5,\"send_status\":\"queued\","
+            + "\"event\":{\"id\":8,\"uid\":\"n@mailflat.net\",\"status\":\"confirmed\","
+            + "\"source\":\"outbound\",\"organizer_verified\":true}}";
+
+    @Test
+    void createSendsTheBuilderFieldsInWireFormat() throws Exception {
+        status = 202;
+        responseBody = OUT;
+        JsonNode res = inbox().createCalendarEvent(CalendarEventOptions.builder()
+                .title("Intro").start("2026-10-06T14:00:00-04:00").durationMinutes(45)
+                .attendee("ali@example.org").attendee("bea@example.org", "Bea", true)
+                .inReplyTo("<m1@example.org>").build());
+        assertEquals("POST", lastMethod);
+        assertEquals(BASE, lastPath);
+        assertEquals(M.readTree("{\"title\":\"Intro\",\"start\":\"2026-10-06T14:00:00-04:00\","
+                + "\"duration_minutes\":45,\"attendees\":[\"ali@example.org\","
+                + "{\"email\":\"bea@example.org\",\"name\":\"Bea\",\"optional\":true}],"
+                + "\"in_reply_to\":\"<m1@example.org>\"}"), M.readTree(lastBody));
+        assertEquals(5, res.get("message_id").asInt());
+        CalendarEvent ev = CalendarEvent.fromJson(res.get("event"));
+        assertEquals("outbound", ev.source());
+        assertTrue(ev.organizerVerified());
+    }
+
+    @Test
+    void updatePatchesOnlyTheChangesAndCancelPosts() throws Exception {
+        status = 202;
+        responseBody = OUT;
+        inbox().updateCalendarEvent(8, CalendarEventOptions.builder().timezone("Europe/Istanbul").build());
+        assertEquals("PATCH", lastMethod);
+        assertEquals(BASE + "/8", lastPath);
+        assertEquals(M.readTree("{\"timezone\":\"Europe/Istanbul\"}"), M.readTree(lastBody));
+
+        inbox().cancelCalendarEvent(8, "Something came up");
+        assertEquals("POST", lastMethod);
+        assertEquals(BASE + "/8/cancel", lastPath);
+        assertEquals(M.readTree("{\"message\":\"Something came up\"}"), M.readTree(lastBody));
+        inbox().cancelCalendarEvent(8);
+        assertEquals(M.readTree("{}"), M.readTree(lastBody));
+    }
+
+    @Test
+    void invalidCallsAreRefusedBeforeAnyRequest() {
+        assertThrows(IllegalArgumentException.class, () -> inbox().updateCalendarEvent(8,
+                CalendarEventOptions.builder().build()));
+        assertThrows(IllegalArgumentException.class, () -> inbox().updateCalendarEvent(8,
+                CalendarEventOptions.builder().title("x").attendee("c@d.co").build()));
+        assertThrows(IllegalArgumentException.class, () -> inbox().createCalendarEvent(
+                CalendarEventOptions.builder().title("x").start("2026-10-06T14:00:00Z").build()));
+        assertEquals(0, calls.get(), "an invalid call reached the server");
+    }
+
+    @Test
+    void invitationCallsAreNeverRetried() {
+        status = 503;
+        responseBody = "{\"detail\":\"unavailable\"}";
+        assertThrows(MailFlatException.class, () -> inbox().createCalendarEvent(CalendarEventOptions
+                .builder().title("x").start("2026-10-06T14:00:00Z").attendee("a@b.co").build()));
+        assertThrows(MailFlatException.class, () -> inbox().updateCalendarEvent(8,
+                CalendarEventOptions.builder().title("y").build()));
+        assertThrows(MailFlatException.class, () -> inbox().cancelCalendarEvent(8));
+        assertEquals(3, calls.get(), "an invitation call was retried; attendees would be emailed twice");
     }
 }

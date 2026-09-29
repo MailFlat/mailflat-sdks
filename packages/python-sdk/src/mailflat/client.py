@@ -128,6 +128,10 @@ class MailFlat:
               *, idempotent: bool = False) -> dict[str, Any]:
         return self._request("POST", path, json=json or {}, idempotent=idempotent)
 
+    def _patch(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
+        # Never retried: a calendar update re-sends the invitation to every attendee.
+        return self._request("PATCH", path, json=json)
+
     def _delete(self, path: str) -> dict[str, Any]:
         return self._request("DELETE", path)
 

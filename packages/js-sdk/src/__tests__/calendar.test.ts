@@ -1,4 +1,4 @@
-// Calendar surface (plan 379 phase 1) — the JS mirror of python-sdk/tests/test_calendar.py.
+// Calendar surface (plan 379 phases 1-2) — the JS mirror of python-sdk/tests/test_calendar.py.
 //
 // What these prove (behaviour, not shape):
 //   - each method hits the exact route, and the include_cancelled flag is on the wire;
@@ -6,10 +6,13 @@
 //     allDay, eventId), and `raw` keeps the payload untouched;
 //   - rsvp sends exactly what the caller said (no `comment: undefined` key);
 //   - rsvp is NOT retried: a retry after a lost response would answer the organizer twice;
-//   - message.calendarEvent is parsed, and null when the message carries no invitation.
+//   - message.calendarEvent is parsed, and null when the message carries no invitation;
+//   - phase 2: create/update/cancel map camelCase options to the wire, refuse a typo instead
+//     of dropping it, and are never retried (a retry would invite everyone twice).
 //
 // Connected to:
-//   - exercises: ../inbox.ts (calendarEvents / calendarEvent / rsvp), ../types.ts
+//   - exercises: ../inbox.ts (calendarEvents / calendarEvent / rsvp / create / update / cancel),
+//                ../types.ts
 
 import { describe, expect, it, vi } from "vitest";
 import { MailFlat } from "../index";
@@ -95,3 +98,59 @@ describe("calendar", () => {
     expect(plain.calendarEvent).toBeNull();
   });
 });
+
+describe("calendar phase 2: meetings this inbox organizes", () => {
+  function recorder(status = 202) {
+    const seen: [string, string, any][] = [];
+    const { mf, fetchMock } = client((url, init) => {
+      seen.push([String(init.method), url.pathname, init.body ? JSON.parse(String(init.body)) : null]);
+      return json(status, { ok: true, message_id: 5, send_status: "queued",
+        event: { ...EVENT, source: "outbound", organizer_verified: true } });
+    });
+    return { seen, ib: mf.inbox(ADDR), fetchMock };
+  }
+
+  it("create/update/cancel send exactly the given fields in wire format", async () => {
+    const { seen, ib } = recorder();
+    const res = await ib.createCalendarEvent({
+      title: "Intro", start: "2026-10-06T14:00:00-04:00", durationMinutes: 45,
+      attendees: ["ali@example.org", { email: "bea@example.org", optional: true }],
+      inReplyTo: "<m1@example.org>",
+    });
+    expect(res.event.source).toBe("outbound");
+    expect(res.event.organizerVerified).toBe(true);
+    expect(res.messageId).toBe(5);
+    await ib.updateCalendarEvent(7, { start: "2026-10-07T14:00:00-04:00", allDay: false });
+    await ib.cancelCalendarEvent(7, { message: "Something came up" });
+    await ib.cancelCalendarEvent(7);
+    expect(seen).toEqual([
+      ["POST", BASE, { title: "Intro", start: "2026-10-06T14:00:00-04:00", duration_minutes: 45,
+        attendees: ["ali@example.org", { email: "bea@example.org", optional: true }],
+        in_reply_to: "<m1@example.org>" }],
+      ["PATCH", `${BASE}/7`, { start: "2026-10-07T14:00:00-04:00", all_day: false }],
+      ["POST", `${BASE}/7/cancel`, { message: "Something came up" }],
+      ["POST", `${BASE}/7/cancel`, {}],
+    ]);
+  });
+
+  it("a typo or an empty update is refused before any request", async () => {
+    const { ib, fetchMock } = recorder();
+    await expect(ib.updateCalendarEvent(7, { starts: "x" } as any)).rejects.toThrow(/starts/);
+    await expect(ib.updateCalendarEvent(7, {})).rejects.toThrow(/at least one field/);
+    await expect(ib.createCalendarEvent({ title: "x", start: "y", attendees: ["a@b.co"],
+      attendee: "c@d.co" } as any)).rejects.toThrow(/attendee/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["create", (ib: any) => ib.createCalendarEvent({ title: "x", start: "2026-10-06T14:00:00Z",
+      attendees: ["a@b.co"] })],
+    ["update", (ib: any) => ib.updateCalendarEvent(7, { title: "y" })],
+    ["cancel", (ib: any) => ib.cancelCalendarEvent(7)],
+  ])("%s is not retried on a gateway error", async (_name, call) => {
+    const { ib, fetchMock } = recorder(504);
+    await expect(call(ib)).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+

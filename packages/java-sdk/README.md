@@ -17,7 +17,7 @@ built-in `java.net.http` (no HTTP dependency); JSON via Jackson.
 <dependency>
   <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
-  <version>v0.5.0</version>
+  <version>v0.6.0</version>
 </dependency>
 ```
 
@@ -25,7 +25,7 @@ Gradle:
 
 ```groovy
 repositories { maven { url 'https://jitpack.io' } }
-dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.5.0' }
+dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.6.0' }
 ```
 
 ## Quickstart
@@ -156,6 +156,20 @@ inbox.waitUntilSent(res.get("message_id").asInt());       // the reply is a queu
 `message.calendarEvent()` / `calendarEventId()` carry the invitation a message brought in. If
 the organizer moves the meeting, the event updates in place and `myStatus()` goes back to
 `needs-action`.
+
+The inbox can also be the organizer. Attendees get a normal invitation with Yes / No / Maybe
+buttons, and their answers land on the event (`calendar.attendee.responded` webhook):
+
+```java
+JsonNode res = inbox.createCalendarEvent(CalendarEventOptions.builder()
+        .title("Intro call").start("2026-10-06T14:00:00").timezone("America/New_York")
+        .durationMinutes(45).attendee("ali@example.com").optionalAttendee("bea@example.com")
+        .build());
+int eventId = res.get("event").get("id").asInt();
+inbox.updateCalendarEvent(eventId, CalendarEventOptions.builder()
+        .start("2026-10-07T14:00:00-04:00").build());               // same event, new time
+inbox.cancelCalendarEvent(eventId, "Something came up");
+```
 
 ### `Message`
 `otp()`, `subject()`, `sender()`, `text()`, `html()`, `toAddress()`, `direction()`,

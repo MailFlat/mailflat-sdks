@@ -125,6 +125,21 @@ await inbox.waitUntilSent(res.messageId!);          // the reply is a queued ema
 If the organizer moves the meeting, the event updates in place and `myStatus` goes back to
 `needs-action`. Subscribe to the `calendar.*` webhook to hear about changes without polling.
 
+The inbox can also be the organizer. Attendees get a normal invitation with Yes / No / Maybe
+buttons, and their answers land on the event (`calendar.attendee.responded` webhook):
+
+```ts
+const { event } = await inbox.createCalendarEvent({
+  title: "Intro call", start: "2026-10-06T14:00:00", timezone: "America/New_York",
+  durationMinutes: 45, attendees: ["ali@example.com", { email: "bea@example.com", optional: true }],
+});
+await inbox.updateCalendarEvent(event.id, { start: "2026-10-07T14:00:00-04:00" });
+await inbox.cancelCalendarEvent(event.id, { message: "Something came up" });
+```
+
+A time without an offset needs `timezone`; nothing is guessed. Moving a meeting keeps its
+length and asks everyone again.
+
 ### `Message`
 `.otp`, `.subject`, `.sender`, `.text`, `.html`, `.toAddress`, `.direction`, `.receivedAt`,
 `.links`, `.attachments`, `.spam`, `.headers`, `.isRead`, `.raw`.

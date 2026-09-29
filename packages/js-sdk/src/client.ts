@@ -195,6 +195,10 @@ export class MailFlat {
   _post(path: string, body: Record<string, any>, idempotent = false) {
     return this._request("POST", path, body, idempotent);
   }
+  /** Never retried: a calendar update re-sends the invitation to every attendee. */
+  _patch(path: string, body: Record<string, any>) {
+    return this._request("PATCH", path, body);
+  }
   _delete(path: string) {
     return this._request("DELETE", path);
   }
