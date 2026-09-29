@@ -33,6 +33,7 @@ export type {
   CalendarEventInput,
   CalendarEventUpdate,
   CalendarEventResult,
+  CalendarFeed,
   CalendarInvite,
   CalendarPerson,
   RsvpResponse,

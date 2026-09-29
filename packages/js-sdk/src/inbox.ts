@@ -2,7 +2,8 @@
 //
 // Returned by the MailFlat client: read messages, wait for OTP, send, mark read, burn, delete,
 // and the calendar: received invitations (calendarEvents / calendarEvent / rsvp) and meetings
-// this inbox organizes (createCalendarEvent / updateCalendarEvent / cancelCalendarEvent).
+// this inbox organizes (createCalendarEvent / updateCalendarEvent / cancelCalendarEvent), and the
+// read-only subscribe link a human adds to their calendar app (calendarFeed / rotateCalendarFeed).
 //
 // Connected to:
 //   - used by:    client.ts (creates it), user code
@@ -25,6 +26,7 @@ import {
   type CalendarEventInput,
   type CalendarEventResult,
   type CalendarEventUpdate,
+  type CalendarFeed,
   type Direction,
   type Message,
   type OutgoingAttachment,
@@ -37,6 +39,7 @@ import {
   type WaitOptions,
   replySubject,
   toCalendarEvent,
+  toCalendarFeed,
   toMessage,
 } from "./types";
 
@@ -474,6 +477,25 @@ export class Inbox {
     if (opts.message !== undefined) body.message = opts.message;
     return toEventResult(await this.#client._post(
       `/api/v1/inboxes/${this.address}/calendar/events/${eventId}/cancel`, body));
+  }
+
+  /**
+   * Read-only subscribe link for this inbox's calendar, for a human to add in Google Calendar,
+   * Apple Calendar or Outlook (meetings, attendees and their answers). Created on the first
+   * call; later calls return the SAME link, so sharing it twice never breaks a subscription.
+   */
+  async calendarFeed(): Promise<CalendarFeed> {
+    return toCalendarFeed(await this.#client._get(`/api/v1/inboxes/${this.address}/calendar/feed`));
+  }
+
+  /**
+   * Replace the subscribe link; the old one stops working right away (use it if it leaked).
+   * Retried on a lost response: rotating again only replaces a link nobody has seen.
+   * Needs the `inbox:manage` scope.
+   */
+  async rotateCalendarFeed(): Promise<CalendarFeed> {
+    return toCalendarFeed(await this.#client._post(
+      `/api/v1/inboxes/${this.address}/calendar/feed/rotate`, {}, true));
   }
 
   /**

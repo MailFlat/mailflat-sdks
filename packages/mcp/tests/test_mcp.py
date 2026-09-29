@@ -29,6 +29,7 @@ class FakeBackend:
         self.events = {}    # address -> [calendar event] (plan 379)
         self.rsvps = []     # every RSVP body that reached the server
         self.invites = []   # every create / update / cancel body (plan 379 Faz 2)
+        self.feeds = {}     # address -> subscribe token (plan 379 Faz 3)
 
     def handler(self, req: httpx.Request) -> httpx.Response:
         path = req.url.path
@@ -46,6 +47,8 @@ class FakeBackend:
         if method == "GET" and path == "/api/v1/inboxes":
             return httpx.Response(200, json={"ok": True, "inboxes": [
                 {"address": a, "via_api": True, **m} for a, m in self.inboxes.items()]})
+        if "/calendar/feed" in path:
+            return self._feed(method, path)
         if "/calendar/events" in path:
             return self._calendar(method, path, req)
         if method == "GET" and path.endswith("/messages"):
@@ -114,6 +117,17 @@ class FakeBackend:
             self.inboxes.pop(addr, None)
             return httpx.Response(200, json={"ok": True, "message": "Inbox deleted"})
         return httpx.Response(404, json={"detail": "not found"})
+
+    def _feed(self, method: str, path: str) -> httpx.Response:
+        """The real subscribe-link contract: GET creates once and then returns the SAME link,
+        rotate replaces it. The payload carries a stray key so redaction is exercised."""
+        addr = path.split("/api/v1/inboxes/")[1].partition("/calendar/feed")[0]
+        if method == "POST" and path.endswith("/rotate") or addr not in self.feeds:
+            self.feeds[addr] = f"mfcal_{len(self.feeds) + 1}x{addr[:3]}"
+        url = f"https://mailflat.net/api/cal/{self.feeds[addr]}.ics"
+        return httpx.Response(200, json={"enabled": True, "feed_url": url,
+                                         "webcal_url": "webcal://" + url.split("://", 1)[1],
+                                         "api_key": "mf_sk_feedleak"})
 
     def _calendar(self, method: str, path: str, req: httpx.Request) -> httpx.Response:
         """The real calendar contract: cancelled hidden by default, RSVP answers 202, a
@@ -351,7 +365,8 @@ def test_mcp_tools_registered():
                      "wait_for_otp", "wait_for_message", "send_email", "reply",
                      "wait_until_sent", "mark_read", "burn_inbox", "delete_inbox",
                      "delete_message", "list_calendar_events", "rsvp_to_invite",
-                     "create_calendar_event", "update_calendar_event", "cancel_calendar_event"}
+                     "create_calendar_event", "update_calendar_event", "cancel_calendar_event",
+                     "get_calendar_feed", "rotate_calendar_feed"}
 
 
 # --------------------------------------------------------------- wait_until_sent
@@ -628,3 +643,14 @@ def test_cancel_calendar_event_and_a_received_invite_is_refused(patched):
     with pytest.raises(ToolError, match="rsvp"):
         server.update_calendar_event(ADDR, 9, title="Hijack")
 
+
+
+# ================================== calendar Faz 3: subscribe link (plan 379 §10)
+def test_calendar_feed_same_link_twice_and_rotate_replaces_it(patched):
+    first = server.get_calendar_feed(ADDR)
+    assert first["feed_url"].endswith(".ics") and first["webcal_url"].startswith("webcal://")
+    assert server.get_calendar_feed(ADDR)["feed_url"] == first["feed_url"], \
+        "a second call must not break the human's subscription"
+    rotated = server.rotate_calendar_feed(ADDR)
+    assert rotated["feed_url"] != first["feed_url"]
+    assert "api_key" not in rotated and "mf_sk_" not in str(rotated)

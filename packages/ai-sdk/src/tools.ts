@@ -1,7 +1,8 @@
-// MailFlat tool suite for the Vercel AI SDK — 17 tools: createInbox, listInboxes,
+// MailFlat tool suite for the Vercel AI SDK — 19 tools: createInbox, listInboxes,
 // readMessages, waitForOtp, waitForMessage, sendEmail, reply, waitUntilSent, markRead,
 // burnInbox, deleteInbox, deleteMessage, listCalendarEvents, rsvpToInvite,
-// createCalendarEvent, updateCalendarEvent, cancelCalendarEvent.
+// createCalendarEvent, updateCalendarEvent, cancelCalendarEvent, getCalendarFeed,
+// rotateCalendarFeed.
 //
 // (This header used to list ten of them, silently dropping `reply`. A comment that
 // miscounts the file it sits on top of is how a stale number survives for months, so the
@@ -503,6 +504,28 @@ export function mailflatToolSuite(options: ToolSuiteOptions = {}): Record<string
           const res = await client.inbox(address).cancelCalendarEvent(eventId, { message });
           return res.raw;
         }),
+    ),
+
+    getCalendarFeed: defineTool(
+      "Get the read-only subscribe link for an inbox's calendar, to give to a human. They add it " +
+        "in Google Calendar, Apple Calendar or Outlook and see this inbox's meetings there, with " +
+        "attendees and their answers. Calling again returns the SAME link. subscribe_links has " +
+        "one-click add links per app. Google refreshes subscribed calendars every 8 to 24 hours.",
+      z.object({
+        address: z.string().describe("The inbox whose calendar to share."),
+      }),
+      ({ address }) =>
+        guarded(async () => (await client.inbox(address).calendarFeed()).raw),
+    ),
+
+    rotateCalendarFeed: defineTool(
+      "Replace an inbox's calendar subscribe link; the old link stops working at once. Use only " +
+        "when the link leaked. Everyone subscribed has to add the new link.",
+      z.object({
+        address: z.string().describe("The inbox whose subscribe link to replace."),
+      }),
+      ({ address }) =>
+        guarded(async () => (await client.inbox(address).rotateCalendarFeed()).raw),
     ),
   };
 }

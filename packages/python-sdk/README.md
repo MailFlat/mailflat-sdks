@@ -210,6 +210,18 @@ length and asks everyone again. `calendar.attendee.responded` fires when an atte
 Normal sending rules apply: on the Free plan without a verified domain, invitations only go
 to your own addresses.
 
+A person can follow the agent's calendar in their own calendar app. Hand them the read-only
+subscribe link; every call returns the same link, so sharing it twice never breaks anything:
+
+```python
+feed = inbox.calendar_feed()
+feed["feed_url"]                     # https: Google "From URL", Outlook "Subscribe from web"
+feed["subscribe_links"]["google"]    # one-click add links: google, apple, outlook
+inbox.rotate_calendar_feed()         # the link leaked: new one, the old one stops working
+```
+
+Google refreshes subscribed calendars every 8 to 24 hours; the API above is live.
+
 ## Errors
 
 All errors subclass `MailFlatError`: `AuthenticationError` (401), `MailFlatPermissionError` (403,

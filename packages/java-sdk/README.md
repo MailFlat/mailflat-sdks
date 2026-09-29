@@ -17,7 +17,7 @@ built-in `java.net.http` (no HTTP dependency); JSON via Jackson.
 <dependency>
   <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
-  <version>v0.6.0</version>
+  <version>v0.7.0</version>
 </dependency>
 ```
 
@@ -25,7 +25,7 @@ Gradle:
 
 ```groovy
 repositories { maven { url 'https://jitpack.io' } }
-dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.6.0' }
+dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.7.0' }
 ```
 
 ## Quickstart
@@ -169,6 +169,15 @@ int eventId = res.get("event").get("id").asInt();
 inbox.updateCalendarEvent(eventId, CalendarEventOptions.builder()
         .start("2026-10-07T14:00:00-04:00").build());               // same event, new time
 inbox.cancelCalendarEvent(eventId, "Something came up");
+```
+
+A person can follow the agent's calendar in their own calendar app. Hand them the read-only
+subscribe link; every call returns the same link:
+
+```java
+JsonNode feed = inbox.calendarFeed();
+String url = feed.get("feed_url").asText();   // Google "From URL", Outlook "Subscribe from web"
+inbox.rotateCalendarFeed();                    // the link leaked: new one, the old one stops working
 ```
 
 ### `Message`

@@ -11,7 +11,7 @@
 //                     send(to, SendOptions), waitUntilSent(), delete(),
 //                     calendarEvents(), calendarEvent(id), rsvp(id, RsvpResponse),
 //                     createCalendarEvent(CalendarEventOptions), updateCalendarEvent(id, ...),
-//                     cancelCalendarEvent(id)
+//                     cancelCalendarEvent(id), calendarFeed(), rotateCalendarFeed()
 package net.mailflat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -454,6 +454,26 @@ public final class Inbox {
             body.put("message", message);
         }
         return client.post("/api/v1/inboxes/" + address + "/calendar/events/" + eventId + "/cancel", body);
+    }
+
+    /**
+     * Read-only subscribe link for this inbox's calendar, for a human to add in Google Calendar,
+     * Apple Calendar or Outlook (meetings, attendees and their answers). Created on the first
+     * call; later calls return the SAME link, so sharing it twice never breaks a subscription.
+     * Fields: {@code feed_url}, {@code webcal_url}, {@code subscribe_links.google|apple|outlook},
+     * {@code last_fetched_at}. Google refreshes subscribed calendars every 8 to 24 hours.
+     */
+    public JsonNode calendarFeed() {
+        return client.get("/api/v1/inboxes/" + address + "/calendar/feed");
+    }
+
+    /**
+     * Replace the subscribe link; the old one stops working right away (use it if it leaked).
+     * Retried on a lost response: rotating again only replaces a link nobody has seen.
+     * Needs the {@code inbox:manage} scope.
+     */
+    public JsonNode rotateCalendarFeed() {
+        return client.postIdempotent("/api/v1/inboxes/" + address + "/calendar/feed/rotate", null);
     }
 
     /** Delete this inbox and all its messages. Irreversible. */

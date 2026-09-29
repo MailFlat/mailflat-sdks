@@ -216,4 +216,17 @@ class CalendarTest {
         assertThrows(MailFlatException.class, () -> inbox().cancelCalendarEvent(8));
         assertEquals(3, calls.get(), "an invitation call was retried; attendees would be emailed twice");
     }
+
+    // Phase 3: the read-only subscribe link a human adds to their calendar app.
+    @Test
+    void calendarFeedAndRotateHitTheirRoutes() throws Exception {
+        responseBody = "{\"enabled\":true,\"feed_url\":\"https://mailflat.net/api/cal/mfcal_abc.ics\"}";
+        JsonNode feed = inbox().calendarFeed();
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/inboxes/" + ADDR + "/calendar/feed", lastPath);
+        assertEquals("https://mailflat.net/api/cal/mfcal_abc.ics", feed.get("feed_url").asText());
+        inbox().rotateCalendarFeed();
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/inboxes/" + ADDR + "/calendar/feed/rotate", lastPath);
+    }
 }

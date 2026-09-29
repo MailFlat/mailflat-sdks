@@ -219,6 +219,39 @@ export interface CalendarEventResult {
   raw: Record<string, any>;
 }
 
+/**
+ * Read-only subscribe link for an inbox's calendar (plan 379 phase 3), for a human to add in
+ * Google Calendar, Apple Calendar or Outlook. The same link comes back on every call; rotate
+ * it if it leaks. Google refreshes subscribed calendars every 8 to 24 hours.
+ */
+export interface CalendarFeed {
+  enabled: boolean;
+  /** https URL; Outlook "Subscribe from web" and Google "From URL" take this one. */
+  feedUrl: string | null;
+  /** Same link with the webcal:// scheme; opening it subscribes Apple Calendar directly. */
+  webcalUrl: string | null;
+  /** One-click add links per calendar app. */
+  subscribeLinks: { google: string; apple: string; outlook: string } | null;
+  createdAt: string | null;
+  /** Last time a calendar app fetched the link; null until one has. */
+  lastFetchedAt: string | null;
+  fetchCount: number;
+  raw: Record<string, any>;
+}
+
+export function toCalendarFeed(res: Record<string, any>): CalendarFeed {
+  return {
+    enabled: Boolean(res.enabled),
+    feedUrl: res.feed_url ?? null,
+    webcalUrl: res.webcal_url ?? null,
+    subscribeLinks: res.subscribe_links ?? null,
+    createdAt: res.created_at ?? null,
+    lastFetchedAt: res.last_fetched_at ?? null,
+    fetchCount: res.fetch_count ?? 0,
+    raw: res,
+  };
+}
+
 export interface CreateInboxOptions {
   prefix?: string;
   /** Display name. Paid plans only — on Free the response reports it in `ignored_fields`. */

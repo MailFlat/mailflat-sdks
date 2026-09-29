@@ -293,6 +293,15 @@ class AsyncInbox:
         return await self._client._post(
             f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/cancel", json=body)
 
+    async def calendar_feed(self) -> dict[str, Any]:
+        """Read-only subscribe link for this calendar (see `Inbox.calendar_feed`)."""
+        return await self._client._get(f"/api/v1/inboxes/{self.address}/calendar/feed")
+
+    async def rotate_calendar_feed(self) -> dict[str, Any]:
+        """Replace the subscribe link; the old one dies (see `Inbox.rotate_calendar_feed`)."""
+        return await self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/feed/rotate", idempotent=True)
+
     async def burn(self) -> dict[str, Any]:
         """Delete every message but keep the address."""
         return await self._client._post(f"/api/v1/inboxes/{self.address}/burn",

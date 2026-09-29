@@ -140,6 +140,18 @@ await inbox.cancelCalendarEvent(event.id, { message: "Something came up" });
 A time without an offset needs `timezone`; nothing is guessed. Moving a meeting keeps its
 length and asks everyone again.
 
+A person can follow the agent's calendar in their own calendar app. Hand them the read-only
+subscribe link; every call returns the same link, so sharing it twice never breaks anything:
+
+```ts
+const feed = await inbox.calendarFeed();
+feed.feedUrl;                 // https: Google "From URL", Outlook "Subscribe from web"
+feed.subscribeLinks?.google;  // one-click add links: google, apple, outlook
+await inbox.rotateCalendarFeed();  // the link leaked: new one, the old one stops working
+```
+
+Google refreshes subscribed calendars every 8 to 24 hours; the API above is live.
+
 ### `Message`
 `.otp`, `.subject`, `.sender`, `.text`, `.html`, `.toAddress`, `.direction`, `.receivedAt`,
 `.links`, `.attachments`, `.spam`, `.headers`, `.isRead`, `.raw`.

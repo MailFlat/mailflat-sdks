@@ -52,6 +52,8 @@ both the v3/v4 (`parameters`) and v5 (`inputSchema`) tool shapes — no version 
 | `createCalendarEvent` | Schedule a meeting from the inbox and email the invitations. `{ address, title, start, attendees, end?, durationMinutes?, timezone?, allDay?, location?, description?, optionalAttendees?, message? }` |
 | `updateCalendarEvent` | Move or edit a meeting the inbox organized; the same event updates in every calendar. `{ address, eventId, ... }` |
 | `cancelCalendarEvent` | Cancel a meeting the inbox organized. `{ address, eventId, message? }` |
+| `getCalendarFeed` | Read-only subscribe link for the inbox's calendar, to hand to a person (Google, Apple, Outlook). The same link on every call. `{ address }` |
+| `rotateCalendarFeed` | Replace the subscribe link; the old one stops working at once. `{ address }` |
 
 > Reads default to **received** mail. Without that, an agent that sends to a peer and then
 > waits for the reply matches its own outgoing message immediately.

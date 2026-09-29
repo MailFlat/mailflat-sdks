@@ -3,7 +3,7 @@
   "name": "io.github.MailFlat/mailflat-mcp",
   "title": "MailFlat",
   "description": "Real email inboxes for AI agents: open an address, read the one-time code, send mail.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "websiteUrl": "https://mailflat.net/docs/ai/mcp",
   "repository": {
     "url": "https://github.com/MailFlat/mailflat-sdks",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "mailflat-mcp",
-      "version": "0.11.0",
+      "version": "0.12.0",
       "transport": {
         "type": "stdio"
       },

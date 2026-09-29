@@ -35,7 +35,7 @@ Add to `claude_desktop_config.json` (or your client's MCP config):
 
 Get your API key from the [MailFlat dashboard](https://mailflat.net) → Agents.
 
-## Tools (14)
+## Tools (19)
 
 | Tool | What it does |
 |---|---|
@@ -56,6 +56,8 @@ Get your API key from the [MailFlat dashboard](https://mailflat.net) → Agents.
 | `create_calendar_event(address, title, start, attendees, ...)` | Schedule a meeting from the inbox and email the invitations (Yes / No / Maybe in the attendees' calendars) |
 | `update_calendar_event(address, event_id, ...)` | Move or edit a meeting the inbox organized; the same event updates in every calendar |
 | `cancel_calendar_event(address, event_id, message?)` | Cancel a meeting the inbox organized |
+| `get_calendar_feed(address)` | Read-only subscribe link for the inbox's calendar, to hand to a person (Google, Apple, Outlook). The same link on every call |
+| `rotate_calendar_feed(address)` | Replace the subscribe link; the old one stops working at once |
 
 > Reads return **received** mail by default. Without that, sending to a peer and then
 > waiting for the reply would immediately match your own outgoing message.

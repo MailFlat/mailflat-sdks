@@ -154,3 +154,41 @@ describe("calendar phase 2: meetings this inbox organizes", () => {
   });
 });
 
+
+// Phase 3: the read-only subscribe link a human adds to their calendar app.
+describe("calendar subscribe link", () => {
+  const FEED = {
+    enabled: true, feed_url: "https://mailflat.net/api/cal/mfcal_abc.ics",
+    webcal_url: "webcal://mailflat.net/api/cal/mfcal_abc.ics",
+    subscribe_links: { google: "https://calendar.google.com/calendar/r?cid=x",
+      apple: "webcal://mailflat.net/api/cal/mfcal_abc.ics",
+      outlook: "https://outlook.live.com/calendar/0/addfromweb?url=x" },
+    created_at: "2026-09-28T12:00:00Z", last_fetched_at: null, fetch_count: 0,
+  };
+  const FEED_BASE = `/api/v1/inboxes/${ADDR}/calendar/feed`;
+
+  it("calendarFeed and rotateCalendarFeed hit their routes and map to camelCase", async () => {
+    const seen: [string, string][] = [];
+    const { mf } = client((url, init) => {
+      seen.push([String(init.method ?? "GET"), url.pathname]);
+      return json(200, FEED);
+    });
+    const ib = mf.inbox(ADDR);
+    const feed = await ib.calendarFeed();
+    expect(feed.feedUrl).toBe(FEED.feed_url);
+    expect(feed.webcalUrl).toBe(FEED.webcal_url);
+    expect(feed.subscribeLinks?.apple).toBe(FEED.webcal_url);
+    expect(feed.lastFetchedAt).toBeNull();
+    expect(feed.raw).toEqual(FEED);
+    await ib.rotateCalendarFeed();
+    expect(seen).toEqual([["GET", FEED_BASE], ["POST", `${FEED_BASE}/rotate`]]);
+  });
+
+  it("rotate is retried after a lost response: a second rotation emails nobody", async () => {
+    let calls = 0;
+    const { mf } = client(() => (++calls === 1 ? json(504, { detail: "gateway timeout" }) : json(200, FEED)));
+    const feed = await mf.inbox(ADDR).rotateCalendarFeed();
+    expect(feed.feedUrl).toBe(FEED.feed_url);
+    expect(calls).toBe(2);
+  });
+});

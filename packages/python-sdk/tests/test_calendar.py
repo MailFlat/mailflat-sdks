@@ -213,3 +213,50 @@ def test_async_invitation_methods_match_sync():
         ("POST", f"{base}/7/cancel", {}),
     ]
 
+
+
+# ------------------------------------------------------------ phase 3: subscribe link
+FEED = {"enabled": True, "feed_url": "https://mailflat.net/api/cal/mfcal_abc.ics",
+        "webcal_url": "webcal://mailflat.net/api/cal/mfcal_abc.ics",
+        "subscribe_links": {"google": "https://calendar.google.com/calendar/r?cid=x",
+                            "apple": "webcal://mailflat.net/api/cal/mfcal_abc.ics",
+                            "outlook": "https://outlook.live.com/calendar/0/addfromweb?url=x"}}
+
+
+def test_calendar_feed_and_rotate_hit_their_routes_sync_and_async():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.url.path))
+        return httpx.Response(200, json=FEED)
+
+    ib = make_client(handler).inbox(ADDR)
+    assert ib.calendar_feed()["feed_url"] == FEED["feed_url"]
+    assert ib.rotate_calendar_feed()["webcal_url"] == FEED["webcal_url"]
+
+    async def run():
+        http = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                 base_url="https://mailflat.net")
+        async with AsyncMailFlat(api_key="mf_test_x", http_client=http) as mf:
+            aib = mf.inbox(ADDR)
+            await aib.calendar_feed()
+            await aib.rotate_calendar_feed()
+
+    asyncio.run(run())
+    base = f"/api/v1/inboxes/{ADDR}/calendar/feed"
+    assert seen == [("GET", base), ("POST", f"{base}/rotate")] * 2
+
+
+def test_rotate_is_retried_because_a_second_rotation_is_harmless():
+    # A lost response to rotate leaves the caller without the new link; rotating again only
+    # replaces a link nobody has seen yet. Unlike an invitation, retrying emails nobody.
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.url.path)
+        if len(calls) == 1:
+            return httpx.Response(504, json={"detail": "gateway timeout"})
+        return httpx.Response(200, json=FEED)
+
+    out = make_client(handler, max_retries=3).inbox(ADDR).rotate_calendar_feed()
+    assert out["feed_url"] == FEED["feed_url"] and len(calls) == 2

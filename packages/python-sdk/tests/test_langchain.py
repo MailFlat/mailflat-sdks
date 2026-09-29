@@ -67,6 +67,9 @@ def test_get_tools_returns_the_full_named_tool_set():
         "create_calendar_event",
         "update_calendar_event",
         "cancel_calendar_event",
+        # plan 379 phase 3: the read-only subscribe link a human adds to their calendar app.
+        "get_calendar_feed",
+        "rotate_calendar_feed",
     }
     # delete_message used to be withheld here, with the rationale that "a model which can
     # delete single messages can destroy evidence of what it did". The list above refutes
@@ -456,3 +459,22 @@ def test_update_and_cancel_tools():
     assert "Nothing to change" in empty["error"]
     assert seen == [("PATCH", "/7", {"duration_minutes": 60}), ("POST", "/7/cancel", {})]
 
+
+
+def test_calendar_feed_tools_pass_the_link_through_to_the_model():
+    # The link is MEANT for the model: the agent hands it to a human. Redaction must not
+    # eat it (it is not one of our API key prefixes), while a stray key still gets masked.
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.url.path))
+        return httpx.Response(200, json={"feed_url": "https://mailflat.net/api/cal/mfcal_abc.ics",
+                                         "api_key": "mf_sk_leak"})
+
+    tools = _tools_by_name(make_toolkit(handler))
+    out = tools["get_calendar_feed"].invoke({"address": "a@x.mailflat.net"})
+    rot = tools["rotate_calendar_feed"].invoke({"address": "a@x.mailflat.net"})
+    assert out["feed_url"].endswith("mfcal_abc.ics") and rot["feed_url"]
+    assert "mf_sk_" not in json.dumps([out, rot])
+    base = "/api/v1/inboxes/a@x.mailflat.net/calendar/feed"
+    assert seen == [("GET", base), ("POST", base + "/rotate")]

@@ -49,6 +49,8 @@ def _calls(addr: str) -> dict:
         # return it (instead of a 403 that would make the scan pass for the wrong reason).
         "update_calendar_event": lambda: server.update_calendar_event(addr, 1, title="Moved"),
         "cancel_calendar_event": lambda: server.cancel_calendar_event(addr, 1),
+        "get_calendar_feed": lambda: server.get_calendar_feed(addr),
+        "rotate_calendar_feed": lambda: server.rotate_calendar_feed(addr),
         "delete_inbox": lambda: server.delete_inbox(addr),  # last: removes the inbox
     }
 

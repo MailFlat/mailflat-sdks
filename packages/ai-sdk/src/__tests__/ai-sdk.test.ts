@@ -25,7 +25,7 @@ function makeSuite(handler: (url: string, init: RequestInit) => Response) {
 }
 
 describe("suite shape", () => {
-  it("exposes the 14 expected tools with matching parameters/inputSchema", () => {
+  it("exposes the 19 expected tools with matching parameters/inputSchema", () => {
     const { suite } = makeSuite(() => jsonResponse(200, {}));
     expect(Object.keys(suite).sort()).toEqual(
       [
@@ -46,6 +46,8 @@ describe("suite shape", () => {
         "createCalendarEvent",
         "updateCalendarEvent",
         "cancelCalendarEvent",
+        "getCalendarFeed",
+        "rotateCalendarFeed",
       ].sort(),
     );
     for (const tool of Object.values(suite)) {
@@ -305,6 +307,8 @@ function leakRuns(suite: Record<string, any>): Array<[string, Promise<any>]> {
       start: "2026-10-06T18:00:00Z", attendees: ["a@example.org"] })],
     ["updateCalendarEvent", suite.updateCalendarEvent.execute({ address: ADDR, eventId: 1, title: "u" })],
     ["cancelCalendarEvent", suite.cancelCalendarEvent.execute({ address: ADDR, eventId: 1 })],
+    ["getCalendarFeed", suite.getCalendarFeed.execute({ address: ADDR })],
+    ["rotateCalendarFeed", suite.rotateCalendarFeed.execute({ address: ADDR })],
   ];
 }
 
@@ -504,6 +508,24 @@ describe("calendar tools: meetings this inbox organizes", () => {
     const empty = await suite.updateCalendarEvent.execute({ address: ADDR, eventId: 8 });
     expect(empty.error).toMatch(/Nothing to change/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("getCalendarFeed / rotateCalendarFeed hand the link to the model, keys still masked", async () => {
+    // The link is MEANT for the model (the agent passes it to a human), so it must survive
+    // redaction; a stray key in the same payload must not.
+    const seen: string[] = [];
+    const feed = "https://mailflat.net/api/cal/mfcal_abc.ics";
+    const { suite } = makeSuite((url, init) => {
+      seen.push(`${init.method ?? "GET"} ${url}`);
+      return jsonResponse(200, { enabled: true, feed_url: feed, api_key: "mf_sk_leak" });
+    });
+    const out = await suite.getCalendarFeed.execute({ address: ADDR });
+    const rot = await suite.rotateCalendarFeed.execute({ address: ADDR });
+    expect(out.feed_url).toBe(feed);
+    expect(rot.feed_url).toBe(feed);
+    expect(JSON.stringify([out, rot])).not.toContain("mf_sk_");
+    const base = `https://mailflat.net/api/v1/inboxes/${ADDR}/calendar/feed`;
+    expect(seen).toEqual([`GET ${base}`, `POST ${base}/rotate`]);
   });
 
   it("cancelCalendarEvent posts to /cancel", async () => {

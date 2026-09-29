@@ -1,4 +1,4 @@
-"""MailFlat MCP server — a 14-tool set for GPT/Claude/Cursor/LangChain.
+"""MailFlat MCP server — a 19-tool set for GPT/Claude/Cursor/LangChain.
 
 A thin MCP shell over the `mailflat` Python SDK; HTTP and behaviour live in the SDK.
 Auth: `MAILFLAT_API_KEY` env var (the `mf_live_...` key from your dashboard).
@@ -41,6 +41,8 @@ Key exports (MCP tools):
 - create_calendar_event(address, title, start, attendees, ...)   (plan 379 Faz 2)
 - update_calendar_event(address, event_id, ...)
 - cancel_calendar_event(address, event_id, message?)
+- get_calendar_feed(address)       (plan 379 Faz 3: read-only subscribe link for a human)
+- rotate_calendar_feed(address)
 """
 import os
 
@@ -402,6 +404,37 @@ def cancel_calendar_event(address: str, event_id: int, message: str = "") -> dic
                 event_id, message=message or None))
     except MailFlatError as e:
         raise ToolError(str(e)) from e
+
+
+@mcp.tool()
+def get_calendar_feed(address: str) -> dict:
+    """Read-only subscribe link for this inbox's calendar, to give to a human.
+
+    They add it in Google Calendar, Apple Calendar or Outlook and see this inbox's meetings
+    there, with attendees and their answers. Calling again returns the SAME link, so sharing
+    it twice never breaks a subscription. `subscribe_links` holds one-click add links per app.
+    Google refreshes subscribed calendars every 8 to 24 hours; for live state use
+    list_calendar_events.
+    """
+    try:
+        with _client() as c:
+            return redact_secrets(c.inbox(address).calendar_feed())
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
+
+@mcp.tool()
+def rotate_calendar_feed(address: str) -> dict:
+    """Replace this inbox's calendar subscribe link; the old link stops working at once.
+
+    Use only when the link leaked. Everyone subscribed has to add the new link.
+    """
+    try:
+        with _client() as c:
+            return redact_secrets(c.inbox(address).rotate_calendar_feed())
+    except MailFlatError as e:
+        raise ToolError(str(e)) from e
+
 
 def _sentence_for(tool_name: str, exc: Exception) -> str:
     """Turn a pydantic argument error into the sentence style the REST API already uses.

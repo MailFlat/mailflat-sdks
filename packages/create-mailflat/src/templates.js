@@ -94,7 +94,7 @@ export const TEMPLATES = [
             type: "module",
             scripts: { test: "playwright test" },
             devDependencies: {
-              "@mailflat/sdk": "^0.9.0",
+              "@mailflat/sdk": "^0.10.0",
               "@playwright/test": "^1.48.0",
               dotenv: "^16.4.5",
             },
@@ -191,7 +191,7 @@ export const TEMPLATES = [
             type: "module",
             scripts: { test: "vitest run", "test:watch": "vitest" },
             devDependencies: {
-              "@mailflat/sdk": "^0.9.0",
+              "@mailflat/sdk": "^0.10.0",
               dotenv: "^16.4.5",
               vitest: "^2.1.0",
             },

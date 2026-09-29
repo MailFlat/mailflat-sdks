@@ -714,6 +714,24 @@ class Inbox:
         return self._client._post(
             f"/api/v1/inboxes/{self.address}/calendar/events/{event_id}/cancel", json=body)
 
+    def calendar_feed(self) -> dict[str, Any]:
+        """Read-only subscribe link for this inbox's calendar, for a human to add.
+
+        Creates the link on first call and returns the SAME link after that, so handing it
+        out twice never breaks a subscription. Returns `{feed_url, webcal_url,
+        subscribe_links: {google, apple, outlook}, last_fetched_at, ...}`. Anyone with the
+        link can read the calendar (meetings, attendees, answers); rotate it if it leaks.
+        Google refreshes subscribed calendars every 8 to 24 hours; use the API for live state.
+        """
+        return self._client._get(f"/api/v1/inboxes/{self.address}/calendar/feed")
+
+    def rotate_calendar_feed(self) -> dict[str, Any]:
+        """Replace the subscribe link. The old one stops working right away (use it if it
+        leaked); subscribers have to add the new link. Returns the same shape as
+        `calendar_feed()`. Needs the `inbox:manage` scope."""
+        return self._client._post(
+            f"/api/v1/inboxes/{self.address}/calendar/feed/rotate", idempotent=True)
+
     def burn(self) -> dict[str, Any]:
         """Delete every message in this inbox and keep the address.
 

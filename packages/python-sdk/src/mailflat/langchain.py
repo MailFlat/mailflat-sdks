@@ -1,4 +1,4 @@
-"""MailFlat LangChain integration — `MailFlatToolkit` plus a 17-tool LangChain tool set.
+"""MailFlat LangChain integration — `MailFlatToolkit` plus a 19-tool LangChain tool set.
 
 A thin LangChain shell over the `mailflat` SDK; all HTTP and behaviour live in the client.
 `langchain-core` is an optional dependency → `pip install mailflat[langchain]`.
@@ -11,7 +11,8 @@ Usage:
                                   # mark_read, burn_inbox, delete_inbox, delete_message,
                                   # list_calendar_events, rsvp_to_invite,
                                   # create_calendar_event, update_calendar_event,
-                                  # cancel_calendar_event
+                                  # cancel_calendar_event, get_calendar_feed,
+                                  # rotate_calendar_feed
 
 ⚠️ Tool output goes through `redact_secrets()`: a per-inbox `api_key` must never reach the
 model's context (and from there LangSmith traces) — see B-055.
@@ -423,6 +424,35 @@ class MailFlatToolkit:
             except MailFlatError as e:
                 return {"error": str(e)}
 
+        def get_calendar_feed(address: str) -> dict:
+            """Get the read-only subscribe link for an inbox's calendar, to give to a human.
+
+            The person adds it in Google Calendar, Apple Calendar or Outlook and sees this
+            inbox's meetings there (attendees and their answers included). Calling again
+            returns the SAME link. `subscribe_links` has one-click add links per app.
+            Google refreshes subscribed calendars every 8 to 24 hours.
+
+            Args:
+                address: The inbox whose calendar to share.
+            """
+            try:
+                return redact_secrets(client.inbox(address).calendar_feed())
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        def rotate_calendar_feed(address: str) -> dict:
+            """Replace an inbox's calendar subscribe link; the old link stops working at once.
+
+            Use only when the link leaked. Everyone subscribed has to add the new link.
+
+            Args:
+                address: The inbox whose subscribe link to replace.
+            """
+            try:
+                return redact_secrets(client.inbox(address).rotate_calendar_feed())
+            except MailFlatError as e:
+                return {"error": str(e)}
+
         funcs: list[Any] = [
             create_inbox,
             list_inboxes,
@@ -448,6 +478,8 @@ class MailFlatToolkit:
             create_calendar_event,
             update_calendar_event,
             cancel_calendar_event,
+            get_calendar_feed,
+            rotate_calendar_feed,
         ]
         # from_function derives args_schema from the type hints and docstring itself,
         # which side-steps the pydantic v1/v2 difference.
@@ -821,11 +853,41 @@ class AsyncMailFlatToolkit:
             except MailFlatError as e:
                 return {"error": str(e)}
 
+        async def get_calendar_feed(address: str) -> dict:
+            """Get the read-only subscribe link for an inbox's calendar, to give to a human.
+
+            The person adds it in Google Calendar, Apple Calendar or Outlook and sees this
+            inbox's meetings there (attendees and their answers included). Calling again
+            returns the SAME link. `subscribe_links` has one-click add links per app.
+            Google refreshes subscribed calendars every 8 to 24 hours.
+
+            Args:
+                address: The inbox whose calendar to share.
+            """
+            try:
+                return redact_secrets(await client.inbox(address).calendar_feed())
+            except MailFlatError as e:
+                return {"error": str(e)}
+
+        async def rotate_calendar_feed(address: str) -> dict:
+            """Replace an inbox's calendar subscribe link; the old link stops working at once.
+
+            Use only when the link leaked. Everyone subscribed has to add the new link.
+
+            Args:
+                address: The inbox whose subscribe link to replace.
+            """
+            try:
+                return redact_secrets(await client.inbox(address).rotate_calendar_feed())
+            except MailFlatError as e:
+                return {"error": str(e)}
+
         coroutines: list[Any] = [
             create_inbox, list_inboxes, read_messages, wait_for_otp, wait_for_message,
             send_email, reply, wait_until_sent, mark_read, burn_inbox, delete_inbox,
             delete_message, list_calendar_events, rsvp_to_invite,
             create_calendar_event, update_calendar_event, cancel_calendar_event,
+            get_calendar_feed, rotate_calendar_feed,
         ]
         # `func=` is what StructuredTool derives the ARGUMENT SCHEMA from, even when the
         # async path is the real implementation. The stub therefore has to carry the
