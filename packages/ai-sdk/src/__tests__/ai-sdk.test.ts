@@ -71,6 +71,33 @@ describe("createInbox", () => {
     expect(res.address).toBe(ADDR);
     expect(res.name).toBe("deep-research");
   });
+
+  it("sends `domain` and `subdomain` to the wire instead of stripping them", async () => {
+    // zod's default is `strip`: a field missing from the schema is dropped WITHOUT an error,
+    // so the inbox would quietly land on mailflat.net. Only a real call proves it travels.
+    const bodies: any[] = [];
+    const { suite } = makeSuite((_url, init) => {
+      const body = JSON.parse(init.body as string);
+      bodies.push(body);
+      return jsonResponse(200, { ok: true, address: `${body.prefix}@acme.com` });
+    });
+    const res = await suite.createInbox.execute({ prefix: "bot", domain: "acme.com" });
+    expect(res.address).toBe("bot@acme.com");
+    expect(bodies[0]).toEqual({ prefix: "bot", domain: "acme.com" });
+
+    await suite.createInbox.execute({ prefix: "bot", subdomain: "qa" });
+    expect(bodies[1]).toEqual({ prefix: "bot", subdomain: "qa" });
+  });
+
+  it("reports an unknown domain instead of falling back to mailflat.net", async () => {
+    const { suite, fetchMock } = makeSuite(() =>
+      jsonResponse(400, { detail: "Domain 'nope.com' not found for this account" }),
+    );
+    const res = await suite.createInbox.execute({ prefix: "bot", domain: "nope.com" });
+    expect(res.error).toContain("not found for this account");
+    expect(res.address).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no second, domain-less attempt
+  });
 });
 
 describe("listInboxes", () => {

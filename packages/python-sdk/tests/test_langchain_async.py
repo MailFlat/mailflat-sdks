@@ -68,6 +68,22 @@ def test_async_tool_actually_awaits_the_api():
     assert calls[0].endswith("direction=in")     # the SDK's default survives the tool layer
 
 
+def test_async_create_inbox_sends_domain_and_subdomain():
+    """The async toolkit is a second copy of the tool bodies; prove ITS copy forwards them."""
+    seen: list[dict] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(req.content))
+        return httpx.Response(200, json={"ok": True, "address": "bot@acme.com"})
+
+    tool = async_tools(handler)["create_inbox"]
+    out = asyncio.run(tool.ainvoke({"prefix": "bot", "domain": "acme.com"}))
+    assert out["address"] == "bot@acme.com"
+    assert seen[-1] == {"prefix": "bot", "domain": "acme.com"}
+    asyncio.run(tool.ainvoke({"prefix": "bot", "subdomain": "qa"}))
+    assert seen[-1] == {"prefix": "bot", "subdomain": "qa"}
+
+
 def test_sync_invoke_on_the_async_toolkit_explains_itself():
     """Calling `.invoke()` on the async toolkit is a real mistake people make.
 

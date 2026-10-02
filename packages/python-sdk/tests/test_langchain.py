@@ -95,6 +95,34 @@ def test_create_inbox():
     assert out["address"] == ADDR
 
 
+def test_create_inbox_on_custom_domain_reaches_the_wire():
+    """`domain` and `subdomain` travel under their real names; the result is the BYOD address."""
+    seen: list[dict] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        seen.append(body)
+        return httpx.Response(200, json={"ok": True, "address": f"{body['prefix']}@acme.com"})
+
+    tools = _tools_by_name(make_toolkit(handler))
+    out = tools["create_inbox"].invoke({"prefix": "bot", "domain": "acme.com"})
+    assert out["address"] == "bot@acme.com"
+    assert seen[-1] == {"prefix": "bot", "domain": "acme.com"}   # no empty `subdomain` rides along
+
+    tools["create_inbox"].invoke({"prefix": "bot", "subdomain": "qa"})
+    assert seen[-1] == {"prefix": "bot", "subdomain": "qa"}
+
+
+def test_create_inbox_unknown_domain_is_reported_not_swallowed():
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"detail": "Domain 'nope.com' not found for this account"})
+
+    out = _tools_by_name(make_toolkit(handler))["create_inbox"].invoke(
+        {"prefix": "bot", "domain": "nope.com"})
+    assert "not found for this account" in out["error"]
+    assert "address" not in out
+
+
 # ---------------------------------------------------------------------- list
 def test_list_inboxes():
     def handler(req: httpx.Request) -> httpx.Response:

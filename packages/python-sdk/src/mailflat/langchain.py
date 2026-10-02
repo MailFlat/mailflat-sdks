@@ -91,7 +91,8 @@ class MailFlatToolkit:
         """Return every MailFlat tool as a list of LangChain `BaseTool`s."""
         client = self._client
 
-        def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0) -> dict:
+        def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0,
+                         subdomain: str = "", domain: str = "") -> dict:
             """Open an email inbox and return its address. The address is permanent and
             stays until you delete it; only the messages inside expire, on the retention
             window you choose. Use it to sign up for a service or receive a one-time code.
@@ -101,11 +102,19 @@ class MailFlatToolkit:
                 label: Optional human label to remember what this inbox is for.
                 retention_hours: Optional retention in hours; 0 = your plan's max,
                     values above your plan are capped.
+                subdomain: Optional part after the @ on mailflat.net
+                    (prefix@subdomain.mailflat.net). Paid plans only; random if empty.
+                domain: Optional custom domain to open the inbox on (prefix@acme.com).
+                    Pass it ONLY when the user named a domain they have already verified
+                    on this account; never guess one. Empty = mailflat.net. Wins over
+                    `subdomain`.
             """
             try:
                 inbox = client.create(
                     prefix=prefix or None,
                     label=label or None,
+                    subdomain=subdomain or None,
+                    domain=domain or None,
                     retention_hours=retention_hours if retention_hours and retention_hours > 0 else None,
                 )
                 return redact_secrets(inbox.raw)
@@ -515,7 +524,8 @@ class AsyncMailFlatToolkit:
         client = self._client
 
         async def create_inbox(prefix: str = "", label: str = "",
-                               retention_hours: int = 0) -> dict:
+                               retention_hours: int = 0,
+                               subdomain: str = "", domain: str = "") -> dict:
             """Open an email inbox and return its address. The address is permanent and
             stays until you delete it; only the messages inside expire, on the retention
             window you choose. Use it to sign up for a service or receive a one-time code.
@@ -525,10 +535,17 @@ class AsyncMailFlatToolkit:
                 label: Optional human label to remember what this inbox is for.
                 retention_hours: Optional retention in hours; 0 = your plan's max,
                     values above your plan are capped.
+                subdomain: Optional part after the @ on mailflat.net
+                    (prefix@subdomain.mailflat.net). Paid plans only; random if empty.
+                domain: Optional custom domain to open the inbox on (prefix@acme.com).
+                    Pass it ONLY when the user named a domain they have already verified
+                    on this account; never guess one. Empty = mailflat.net. Wins over
+                    `subdomain`.
             """
             try:
                 inbox = await client.create(
                     prefix=prefix or None, label=label or None,
+                    subdomain=subdomain or None, domain=domain or None,
                     retention_hours=retention_hours if retention_hours and retention_hours > 0 else None,
                 )
                 return redact_secrets(inbox.raw)

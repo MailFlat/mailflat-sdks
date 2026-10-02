@@ -168,10 +168,25 @@ export function mailflatToolSuite(options: ToolSuiteOptions = {}): Record<string
           .positive()
           .optional()
           .describe("Optional retention in hours; capped at your plan's maximum if higher."),
+        subdomain: z
+          .string()
+          .optional()
+          .describe(
+            "Optional part after the @ on mailflat.net (prefix@subdomain.mailflat.net). "
+            + "Paid plans only; random if omitted.",
+          ),
+        domain: z
+          .string()
+          .optional()
+          .describe(
+            "Optional custom domain to open the inbox on (prefix@acme.com). Pass it ONLY when "
+            + "the user named a domain they have already verified on this account; never guess "
+            + "one. Omit it and the address is created on mailflat.net. Wins over `subdomain`.",
+          ),
       }),
-      ({ prefix, label, retentionHours }) =>
+      ({ prefix, label, retentionHours, subdomain, domain }) =>
         guarded(async () => {
-          const inbox = await client.create({ prefix, label, retentionHours });
+          const inbox = await client.create({ prefix, label, retentionHours, subdomain, domain });
           return inbox.raw;
         }),
     ),

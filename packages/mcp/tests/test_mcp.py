@@ -15,6 +15,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mailflat_mcp import server
 
 ADDR = "agent-7f3@x7k2m.mailflat.net"
+VERIFIED_DOMAINS = {"acme.com"}   # the fake account's verified custom domains
 
 
 class FakeBackend:
@@ -22,6 +23,7 @@ class FakeBackend:
 
     def __init__(self):
         self.sent = []      # every /send body (did in_reply_to actually go out?)
+        self.created = []   # every create-inbox body (did `domain` actually go out?)
         self.inboxes = {}   # address -> meta
         self.emails = {}    # address -> [serialized email]
         self.status_steps = []   # send_status handed out, one per single-message read
@@ -37,12 +39,23 @@ class FakeBackend:
         if method == "POST" and path == "/api/v1/inboxes":
             import json
             body = json.loads(req.content or b"{}")
+            self.created.append(body)
             label = body.get("label") or "agent"
             ret = min(body.get("retention_hours") or 2, 2)  # Free plan ceiling = 2h
-            meta = {"ok": True, "address": ADDR, "api_key": "mf_sk_1",
+            # Same rules as the real backend: an unknown domain is a 400, a known one puts
+            # the inbox straight on it (no mailflat.net namespace), and it beats `subdomain`.
+            addr = ADDR
+            if body.get("domain"):
+                if body["domain"] not in VERIFIED_DOMAINS:
+                    return httpx.Response(400, json={
+                        "detail": f"Domain '{body['domain']}' not found for this account"})
+                addr = f"{body.get('prefix') or 'agent-7f3'}@{body['domain']}"
+            elif body.get("subdomain"):
+                addr = f"{body.get('prefix') or 'agent-7f3'}@{body['subdomain']}.mailflat.net"
+            meta = {"ok": True, "address": addr, "api_key": "mf_sk_1",
                     "name": label, "retention_hours": ret}
-            self.inboxes[ADDR] = meta
-            self.emails.setdefault(ADDR, [])
+            self.inboxes[addr] = meta
+            self.emails.setdefault(addr, [])
             return httpx.Response(200, json=meta)
         if method == "GET" and path == "/api/v1/inboxes":
             return httpx.Response(200, json={"ok": True, "inboxes": [
@@ -328,6 +341,32 @@ def test_mcp_invalid_direction_is_reported_not_swallowed(patched):
     addr = server.create_inbox(label="baddir")["address"]
     with pytest.raises(Exception, match="direction"):
         server.read_messages(addr, direction="sideways")
+
+
+def test_mcp_create_inbox_on_custom_domain(patched):
+    """`domain` reaches the wire and the inbox is born on that domain, not on mailflat.net."""
+    res = server.create_inbox(prefix="bot", domain="acme.com")
+    assert res["address"] == "bot@acme.com"
+    assert patched.created[-1]["domain"] == "acme.com"
+
+
+def test_mcp_create_inbox_on_chosen_subdomain(patched):
+    res = server.create_inbox(prefix="bot", subdomain="qa")
+    assert res["address"] == "bot@qa.mailflat.net"
+    assert patched.created[-1]["subdomain"] == "qa"
+
+
+def test_mcp_create_inbox_unknown_domain_fails_loudly(patched):
+    """A domain the account does not own is an error the model sees, not a silent fallback."""
+    with pytest.raises(ToolError, match="not found for this account"):
+        server.create_inbox(prefix="bot", domain="not-mine.com")
+    assert patched.inboxes == {}        # nothing was quietly opened on mailflat.net instead
+
+
+def test_mcp_create_inbox_default_sends_no_domain_fields(patched):
+    """The empty defaults must not travel: an empty `domain` on the wire would be a 400."""
+    server.create_inbox(label="plain")
+    assert "domain" not in patched.created[-1] and "subdomain" not in patched.created[-1]
 
 
 def test_mcp_create_inbox_retention(patched):

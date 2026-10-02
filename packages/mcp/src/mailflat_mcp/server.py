@@ -24,7 +24,7 @@ the mail a second time. Permanent failure still raises.
 response must never reach the model's context (and from there prompt logs) — see B-055.
 
 Key exports (MCP tools):
-  - create_inbox(prefix?, label?, retention_hours?)
+  - create_inbox(prefix?, label?, retention_hours?, subdomain?, domain?)
   - list_inboxes()
   - read_messages(address, direction="in")
   - wait_for_otp(address, timeout=30)
@@ -116,7 +116,8 @@ def _forbid_unknown_arguments() -> None:
 
 
 @mcp.tool()
-def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0) -> dict:
+def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0,
+                 subdomain: str = "", domain: str = "") -> dict:
     """Open an email inbox and return its address. Use this when you need an address to sign
     up for a service or to receive a one-time code.
 
@@ -125,12 +126,19 @@ def create_inbox(prefix: str = "", label: str = "", retention_hours: int = 0) ->
     expire, on the retention window you choose.
 
     `label` needs a paid plan; on free it is reported back in `ignored_fields`.
-    `retention_hours` is optional (0 = your plan's max); requests above your plan are capped."""
+    `retention_hours` is optional (0 = your plan's max); requests above your plan are capped.
+    `subdomain` picks the part after the @ on mailflat.net (`prefix@subdomain.mailflat.net`);
+    it needs a paid plan and is random when omitted.
+    `domain` opens the inbox on a custom domain instead (`prefix@acme.com`). Pass it ONLY when
+    the user named a domain they have already verified on this account; never guess one. Leave
+    it empty and the address is created on mailflat.net. `domain` wins over `subdomain`."""
     try:
         with _client() as c:
             inbox = c.create(
                 prefix=prefix or None,
                 label=label or None,
+                subdomain=subdomain or None,
+                domain=domain or None,
                 retention_hours=retention_hours if retention_hours and retention_hours > 0 else None,
             )
             return redact_secrets(inbox.raw)

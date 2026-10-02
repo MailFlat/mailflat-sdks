@@ -35,7 +35,7 @@ both the v3/v4 (`parameters`) and v5 (`inputSchema`) tool shapes — no version 
 
 | Tool | What it does |
 |---|---|
-| `createInbox` | Open an inbox → returns its address. `{ prefix?, label?, retentionHours? }` |
+| `createInbox` | Open an inbox → returns its address. `{ prefix?, label?, retentionHours?, subdomain?, domain? }`. `domain` opens it on one of your verified custom domains |
 | `listInboxes` | List inboxes available to this API key. |
 | `readMessages` | Read messages in an inbox (newest first). `{ address, direction? }` — received mail by default |
 | `waitForOtp` | Poll until an OTP arrives, then return it. `{ address, timeout? }` (ms) |

@@ -39,7 +39,7 @@ Get your API key from the [MailFlat dashboard](https://mailflat.net) → Agents.
 
 | Tool | What it does |
 |---|---|
-| `create_inbox(prefix?, label?, retention_hours?)` | Open an inbox; `retention_hours` capped by your plan |
+| `create_inbox(prefix?, label?, retention_hours?, subdomain?, domain?)` | Open an inbox; `retention_hours` capped by your plan. `domain` opens it on one of your verified custom domains (`bot@acme.com`) |
 | `list_inboxes()` | All inboxes this key can see |
 | `read_messages(address, direction="in")` | Read messages; received mail by default (`out` / `all` for the rest) |
 | `wait_for_otp(address, timeout=30)` | Poll until an OTP arrives, then return it |
