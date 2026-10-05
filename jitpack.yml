@@ -5,8 +5,12 @@
 #   com.github.MailFlat:mailflat-sdks:<tag>        (official account, from the next tag on)
 # The owner coupling ends when the client moves to Maven Central as net.mailflat.
 # Only the Java module is built (other SDKs are Python/JS, published to PyPI/npm).
+# JDK 17, not 11: on 5 Oct 2026 JitPack moved builds to its "latest" image, where
+# `openjdk11` no longer gets a JAVA_HOME ("The JAVA_HOME environment variable is not defined
+# correctly", tag v0.8.0 failed with no change on our side). The jar still targets Java 11:
+# pom.xml sets maven.compiler.release=11, so a newer compiler changes nothing for users.
 jdk:
-  - openjdk11
+  - openjdk17
 install:
   # Use the Maven wrapper (pins Maven 3.9.9) — JitPack's bundled Maven is too old
   # for modern plugin versions. Tests are skipped here (run in CI/local).
