@@ -719,9 +719,13 @@ class Inbox:
 
         Creates the link on first call and returns the SAME link after that, so handing it
         out twice never breaks a subscription. Returns `{feed_url, webcal_url,
-        subscribe_links: {google, apple, outlook}, last_fetched_at, ...}`. Anyone with the
-        link can read the calendar (meetings, attendees, answers); rotate it if it leaks.
-        Google refreshes subscribed calendars every 8 to 24 hours; use the API for live state.
+        subscribe_links: {google, apple, outlook}, last_fetched_at, last_client, stale}`.
+        Anyone with the link can read the calendar (meetings, attendees, answers); rotate it
+        if it leaks. Google refreshes subscribed calendars every 8 to 24 hours; use the API
+        for live state. `last_client` is the calendar app that last checked the link
+        (`google`, `apple`, `outlook` or `other`) and `stale` is True when the calendar
+        changed after that check. For meetings that show up right away, see
+        `set_calendar_copy()`.
         """
         return self._client._get(f"/api/v1/inboxes/{self.address}/calendar/feed")
 
@@ -731,6 +735,27 @@ class Inbox:
         `calendar_feed()`. Needs the `inbox:manage` scope."""
         return self._client._post(
             f"/api/v1/inboxes/{self.address}/calendar/feed/rotate", idempotent=True)
+
+    def calendar_copy(self) -> dict[str, Any]:
+        """Whether this inbox also sends each meeting to the account owner's own calendar.
+
+        Returns `{enabled, email, available, blocked}`. `email` is the account's sign-in
+        address, the only place copies can go. `available` is False when the inbox itself
+        is that address. `blocked` is True when that address bounced and copies are paused.
+        """
+        return self._client._get(f"/api/v1/inboxes/{self.address}/calendar/copy")
+
+    def set_calendar_copy(self, enabled: bool) -> dict[str, Any]:
+        """Turn the owner's calendar copy on or off. Off by default.
+
+        When on, every meeting this inbox sets up, changes or cancels is also sent to the
+        account owner as an invitation, and so is each guest answer. It appears in Google,
+        Outlook and Apple Calendar right away, unlike the subscribe link, which Google
+        refreshes every 8 to 24 hours. Guests never see the owner's address. Returns the
+        same shape as `calendar_copy()`. Needs the `inbox:manage` scope.
+        """
+        return self._client._put(
+            f"/api/v1/inboxes/{self.address}/calendar/copy", {"enabled": bool(enabled)})
 
     def burn(self) -> dict[str, Any]:
         """Delete every message in this inbox and keep the address.

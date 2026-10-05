@@ -302,6 +302,15 @@ class AsyncInbox:
         return await self._client._post(
             f"/api/v1/inboxes/{self.address}/calendar/feed/rotate", idempotent=True)
 
+    async def calendar_copy(self) -> dict[str, Any]:
+        """Owner's calendar copy setting (see `Inbox.calendar_copy`)."""
+        return await self._client._get(f"/api/v1/inboxes/{self.address}/calendar/copy")
+
+    async def set_calendar_copy(self, enabled: bool) -> dict[str, Any]:
+        """Turn the owner's calendar copy on or off (see `Inbox.set_calendar_copy`)."""
+        return await self._client._put(
+            f"/api/v1/inboxes/{self.address}/calendar/copy", {"enabled": bool(enabled)})
+
     async def burn(self) -> dict[str, Any]:
         """Delete every message but keep the address."""
         return await self._client._post(f"/api/v1/inboxes/{self.address}/burn",
@@ -390,6 +399,10 @@ class AsyncMailFlat:
     async def _patch(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
         # Never retried: a calendar update re-sends the invitation to every attendee.
         return await self._request("PATCH", path, json=json)
+
+    async def _put(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
+        # A PUT sets a value; sending it twice lands on the same state, so it is retried.
+        return await self._request("PUT", path, json=json, idempotent=True)
 
     async def _delete(self, path: str) -> dict[str, Any]:
         return await self._request("DELETE", path)

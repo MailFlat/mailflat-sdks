@@ -191,4 +191,41 @@ describe("calendar subscribe link", () => {
     expect(feed.feedUrl).toBe(FEED.feed_url);
     expect(calls).toBe(2);
   });
+
+  it("feed carries who checked last and whether the subscribed copy is behind", async () => {
+    const { mf } = client(() => json(200, { ...FEED, last_fetched_at: "2026-10-04T16:27:37Z",
+      last_client: "google", stale: true }));
+    const feed = await mf.inbox(ADDR).calendarFeed();
+    expect(feed.lastClient).toBe("google");
+    expect(feed.stale).toBe(true);
+    const { mf: mf2 } = client(() => json(200, FEED));
+    const fresh = await mf2.inbox(ADDR).calendarFeed();
+    expect(fresh.lastClient).toBeNull();
+    expect(fresh.stale).toBe(false);
+  });
+
+  const COPY = { enabled: true, email: "owner@example.com", available: true, blocked: false };
+  const COPY_PATH = `/api/v1/inboxes/${ADDR}/calendar/copy`;
+
+  it("calendarCopy reads and setCalendarCopy PUTs the switch", async () => {
+    const seen: [string, string, string | null][] = [];
+    const { mf } = client((url, init) => {
+      seen.push([String(init.method ?? "GET"), url.pathname, init.body ? String(init.body) : null]);
+      return json(200, COPY);
+    });
+    const ib = mf.inbox(ADDR);
+    const state = await ib.calendarCopy();
+    expect(state.email).toBe("owner@example.com");
+    expect(state.note).toBeNull();
+    expect((await ib.setCalendarCopy(false)).raw).toEqual(COPY);
+    expect(seen.map(([m, p]) => [m, p])).toEqual([["GET", COPY_PATH], ["PUT", COPY_PATH]]);
+    expect(JSON.parse(seen[1][2] as string)).toEqual({ enabled: false });
+  });
+
+  it("setting the copy is retried after a lost response: it emails nobody", async () => {
+    let calls = 0;
+    const { mf } = client(() => (++calls === 1 ? json(504, { detail: "gateway timeout" }) : json(200, COPY)));
+    expect((await mf.inbox(ADDR).setCalendarCopy(true)).enabled).toBe(true);
+    expect(calls).toBe(2);
+  });
 });

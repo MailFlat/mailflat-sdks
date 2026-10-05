@@ -218,6 +218,17 @@ feed = inbox.calendar_feed()
 feed["feed_url"]                     # https: Google "From URL", Outlook "Subscribe from web"
 feed["subscribe_links"]["google"]    # one-click add links: google, apple, outlook
 inbox.rotate_calendar_feed()         # the link leaked: new one, the old one stops working
+feed["last_client"]                  # "google" | "apple" | "outlook" | "other": who checked last
+feed["stale"]                        # True: the calendar changed after that check
+```
+
+Google refreshes a subscribed link every 8 to 24 hours. To have the account owner see
+meetings right away, send them a copy as an invitation. It is off by default and goes only to
+the account's sign-in address; guests never see it:
+
+```python
+inbox.set_calendar_copy(True)
+inbox.calendar_copy()["email"]       # where the copies go
 ```
 
 Google refreshes subscribed calendars every 8 to 24 hours; the API above is live.

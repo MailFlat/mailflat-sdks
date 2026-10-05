@@ -235,8 +235,44 @@ export interface CalendarFeed {
   createdAt: string | null;
   /** Last time a calendar app fetched the link; null until one has. */
   lastFetchedAt: string | null;
+  /** The calendar app behind that fetch; null until one has, or when it is not known. */
+  lastClient: "google" | "apple" | "outlook" | "other" | null;
+  /**
+   * True when the calendar changed after the last check, so the subscribed copy is behind.
+   * Google catches up on its own schedule (8 to 24 hours). See `setCalendarCopy()` for
+   * meetings that show up right away.
+   */
+  stale: boolean;
   fetchCount: number;
   raw: Record<string, any>;
+}
+
+/**
+ * Whether an inbox also sends each meeting to the account owner's own calendar.
+ * Copies go to the account's sign-in address and nowhere else.
+ */
+export interface CalendarCopy {
+  enabled: boolean;
+  /** The account's sign-in address; null when there is none to send to. */
+  email: string | null;
+  /** False when the inbox itself is the sign-in address, so there is nothing to copy to. */
+  available: boolean;
+  /** True when `email` bounced and copies are paused until it leaves the suppression list. */
+  blocked: boolean;
+  /** What to do about it, when `blocked` or not `available`. */
+  note: string | null;
+  raw: Record<string, any>;
+}
+
+export function toCalendarCopy(res: Record<string, any>): CalendarCopy {
+  return {
+    enabled: Boolean(res.enabled),
+    email: res.email ?? null,
+    available: Boolean(res.available),
+    blocked: Boolean(res.blocked),
+    note: res.note ?? null,
+    raw: res,
+  };
 }
 
 export function toCalendarFeed(res: Record<string, any>): CalendarFeed {
@@ -247,6 +283,8 @@ export function toCalendarFeed(res: Record<string, any>): CalendarFeed {
     subscribeLinks: res.subscribe_links ?? null,
     createdAt: res.created_at ?? null,
     lastFetchedAt: res.last_fetched_at ?? null,
+    lastClient: res.last_client ?? null,
+    stale: Boolean(res.stale),
     fetchCount: res.fetch_count ?? 0,
     raw: res,
   };

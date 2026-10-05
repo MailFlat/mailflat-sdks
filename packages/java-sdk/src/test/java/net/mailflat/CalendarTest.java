@@ -229,4 +229,17 @@ class CalendarTest {
         assertEquals("POST", lastMethod);
         assertEquals("/api/v1/inboxes/" + ADDR + "/calendar/feed/rotate", lastPath);
     }
+    // The owner's calendar copy: read the switch, set it with a PUT.
+    @Test
+    void calendarCopyReadsAndSetsOnItsRoute() throws Exception {
+        responseBody = "{\"enabled\":true,\"email\":\"owner@example.com\",\"available\":true,\"blocked\":false}";
+        JsonNode state = inbox().calendarCopy();
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/inboxes/" + ADDR + "/calendar/copy", lastPath);
+        assertEquals("owner@example.com", state.get("email").asText());
+        inbox().setCalendarCopy(false);
+        assertEquals("PUT", lastMethod);
+        assertEquals("/api/v1/inboxes/" + ADDR + "/calendar/copy", lastPath);
+        assertEquals(false, M.readTree(lastBody).get("enabled").asBoolean());
+    }
 }

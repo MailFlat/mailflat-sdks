@@ -132,6 +132,10 @@ class MailFlat:
         # Never retried: a calendar update re-sends the invitation to every attendee.
         return self._request("PATCH", path, json=json)
 
+    def _put(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
+        # A PUT sets a value; sending it twice lands on the same state, so it is retried.
+        return self._request("PUT", path, json=json, idempotent=True)
+
     def _delete(self, path: str) -> dict[str, Any]:
         return self._request("DELETE", path)
 

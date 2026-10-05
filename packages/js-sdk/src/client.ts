@@ -199,6 +199,10 @@ export class MailFlat {
   _patch(path: string, body: Record<string, any>) {
     return this._request("PATCH", path, body);
   }
+  /** A PUT sets a value; sending it twice lands on the same state, so it is retried. */
+  _put(path: string, body: Record<string, any>) {
+    return this._request("PUT", path, body, true);
+  }
   _delete(path: string) {
     return this._request("DELETE", path);
   }

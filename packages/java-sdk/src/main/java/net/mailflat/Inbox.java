@@ -461,7 +461,10 @@ public final class Inbox {
      * Apple Calendar or Outlook (meetings, attendees and their answers). Created on the first
      * call; later calls return the SAME link, so sharing it twice never breaks a subscription.
      * Fields: {@code feed_url}, {@code webcal_url}, {@code subscribe_links.google|apple|outlook},
-     * {@code last_fetched_at}. Google refreshes subscribed calendars every 8 to 24 hours.
+     * {@code last_fetched_at}, {@code last_client} (the calendar app that last checked the link:
+     * google, apple, outlook or other) and {@code stale} (true when the calendar changed after
+     * that check). Google refreshes subscribed calendars every 8 to 24 hours; for meetings that
+     * show up right away see {@link #setCalendarCopy(boolean)}.
      */
     public JsonNode calendarFeed() {
         return client.get("/api/v1/inboxes/" + address + "/calendar/feed");
@@ -474,6 +477,30 @@ public final class Inbox {
      */
     public JsonNode rotateCalendarFeed() {
         return client.postIdempotent("/api/v1/inboxes/" + address + "/calendar/feed/rotate", null);
+    }
+
+    /**
+     * Whether this inbox also sends each meeting to the account owner's own calendar.
+     * Fields: {@code enabled}, {@code email} (the account's sign-in address, the only place
+     * copies can go), {@code available} (false when the inbox itself is that address) and
+     * {@code blocked} (true when that address bounced and copies are paused).
+     */
+    public JsonNode calendarCopy() {
+        return client.get("/api/v1/inboxes/" + address + "/calendar/copy");
+    }
+
+    /**
+     * Turn the owner's calendar copy on or off. Off by default. When on, every meeting this
+     * inbox sets up, changes or cancels is also sent to the account owner as an invitation,
+     * and so is each guest answer. It appears in Google, Outlook and Apple Calendar right away,
+     * unlike the subscribe link. Guests never see the owner's address.
+     * Retried on a lost response: it only stores a switch and emails nobody.
+     * Needs the {@code inbox:manage} scope.
+     */
+    public JsonNode setCalendarCopy(boolean enabled) {
+        ObjectNode body = client.json().createObjectNode();
+        body.put("enabled", enabled);
+        return client.put("/api/v1/inboxes/" + address + "/calendar/copy", body);
     }
 
     /** Delete this inbox and all its messages. Irreversible. */

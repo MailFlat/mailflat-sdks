@@ -17,7 +17,7 @@ built-in `java.net.http` (no HTTP dependency); JSON via Jackson.
 <dependency>
   <groupId>com.github.MailFlat</groupId>
   <artifactId>mailflat-sdks</artifactId>
-  <version>v0.7.0</version>
+  <version>v0.8.0</version>
 </dependency>
 ```
 
@@ -25,7 +25,7 @@ Gradle:
 
 ```groovy
 repositories { maven { url 'https://jitpack.io' } }
-dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.7.0' }
+dependencies { implementation 'com.github.MailFlat:mailflat-sdks:v0.8.0' }
 ```
 
 ## Quickstart
@@ -178,6 +178,15 @@ subscribe link; every call returns the same link:
 JsonNode feed = inbox.calendarFeed();
 String url = feed.get("feed_url").asText();   // Google "From URL", Outlook "Subscribe from web"
 inbox.rotateCalendarFeed();                    // the link leaked: new one, the old one stops working
+```
+
+Google refreshes a subscribed link every 8 to 24 hours. To have the account owner see
+meetings right away, send them a copy as an invitation. It is off by default and goes only to
+the account's sign-in address; guests never see it:
+
+```java
+inbox.setCalendarCopy(true);
+String to = inbox.calendarCopy().get("email").asText();   // where the copies go
 ```
 
 ### `Message`

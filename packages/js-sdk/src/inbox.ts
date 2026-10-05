@@ -25,6 +25,7 @@ import {
   type CalendarEvent,
   type CalendarEventInput,
   type CalendarEventResult,
+  type CalendarCopy,
   type CalendarEventUpdate,
   type CalendarFeed,
   type Direction,
@@ -38,6 +39,7 @@ import {
   type SendOptions,
   type WaitOptions,
   replySubject,
+  toCalendarCopy,
   toCalendarEvent,
   toCalendarFeed,
   toMessage,
@@ -496,6 +498,27 @@ export class Inbox {
   async rotateCalendarFeed(): Promise<CalendarFeed> {
     return toCalendarFeed(await this.#client._post(
       `/api/v1/inboxes/${this.address}/calendar/feed/rotate`, {}, true));
+  }
+
+  /**
+   * Whether this inbox also sends each meeting to the account owner's own calendar, and to
+   * which address (always the account's sign-in email).
+   */
+  async calendarCopy(): Promise<CalendarCopy> {
+    return toCalendarCopy(await this.#client._get(`/api/v1/inboxes/${this.address}/calendar/copy`));
+  }
+
+  /**
+   * Turn the owner's calendar copy on or off. Off by default. When on, every meeting this
+   * inbox sets up, changes or cancels is also sent to the account owner as an invitation,
+   * and so is each guest answer. It appears in Google, Outlook and Apple Calendar right away,
+   * unlike the subscribe link. Guests never see the owner's address.
+   * Retried on a lost response: it only stores a switch and emails nobody.
+   * Needs the `inbox:manage` scope.
+   */
+  async setCalendarCopy(enabled: boolean): Promise<CalendarCopy> {
+    return toCalendarCopy(await this.#client._put(
+      `/api/v1/inboxes/${this.address}/calendar/copy`, { enabled: Boolean(enabled) }));
   }
 
   /**

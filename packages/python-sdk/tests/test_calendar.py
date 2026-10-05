@@ -260,3 +260,54 @@ def test_rotate_is_retried_because_a_second_rotation_is_harmless():
 
     out = make_client(handler, max_retries=3).inbox(ADDR).rotate_calendar_feed()
     assert out["feed_url"] == FEED["feed_url"] and len(calls) == 2
+
+
+# -- Owner's calendar copy ---------------------------------------------------------------
+
+COPY = {"enabled": True, "email": "owner@example.com", "available": True, "blocked": False}
+
+
+def test_calendar_copy_reads_and_sets_on_its_route_sync_and_async():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, req.url.path, req.content.decode() or None))
+        return httpx.Response(200, json=COPY)
+
+    ib = make_client(handler).inbox(ADDR)
+    assert ib.calendar_copy()["email"] == "owner@example.com"
+    assert ib.set_calendar_copy(True)["enabled"] is True
+
+    async def run():
+        http = httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                 base_url="https://mailflat.net")
+        async with AsyncMailFlat(api_key="mf_test_x", http_client=http) as mf:
+            aib = mf.inbox(ADDR)
+            await aib.calendar_copy()
+            await aib.set_calendar_copy(False)
+
+    asyncio.run(run())
+    path = f"/api/v1/inboxes/{ADDR}/calendar/copy"
+    assert [(m, p) for m, p, _ in seen] == [("GET", path), ("PUT", path)] * 2
+    assert [json.loads(b) for _, _, b in seen if b] == [{"enabled": True}, {"enabled": False}]
+
+
+def test_setting_the_copy_is_retried_because_it_lands_on_the_same_state():
+    # Unlike an invitation, repeating this emails nobody: it only stores a switch.
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.method)
+        if len(calls) == 1:
+            return httpx.Response(504, json={"detail": "gateway timeout"})
+        return httpx.Response(200, json=COPY)
+
+    out = make_client(handler, max_retries=3).inbox(ADDR).set_calendar_copy(True)
+    assert out["enabled"] is True and calls == ["PUT", "PUT"]
+
+
+def test_feed_carries_who_checked_and_whether_it_is_behind():
+    body = {**FEED, "last_fetched_at": "2026-10-04T16:27:37Z", "last_client": "google", "stale": True}
+    ib = make_client(lambda req: httpx.Response(200, json=body)).inbox(ADDR)
+    feed = ib.calendar_feed()
+    assert feed["last_client"] == "google" and feed["stale"] is True

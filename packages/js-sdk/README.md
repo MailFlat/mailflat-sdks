@@ -148,6 +148,17 @@ const feed = await inbox.calendarFeed();
 feed.feedUrl;                 // https: Google "From URL", Outlook "Subscribe from web"
 feed.subscribeLinks?.google;  // one-click add links: google, apple, outlook
 await inbox.rotateCalendarFeed();  // the link leaked: new one, the old one stops working
+feed.lastClient;              // "google" | "apple" | "outlook" | "other": who checked last
+feed.stale;                   // true: the calendar changed after that check
+```
+
+Google refreshes a subscribed link every 8 to 24 hours. To have the account owner see
+meetings right away, send them a copy as an invitation. It is off by default and goes only to
+the account's sign-in address; guests never see it:
+
+```ts
+await inbox.setCalendarCopy(true);
+(await inbox.calendarCopy()).email;  // where the copies go
 ```
 
 Google refreshes subscribed calendars every 8 to 24 hours; the API above is live.

@@ -182,6 +182,11 @@ public final class MailFlat {
         return request("PATCH", path, body, false);
     }
 
+    /** PUT sets a value; sending it twice lands on the same state, so it IS retried. */
+    JsonNode put(String path, JsonNode body) {
+        return request("PUT", path, body, true);
+    }
+
     JsonNode delete(String path) {
         return request("DELETE", path, null, false);
     }
