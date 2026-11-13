@@ -21,6 +21,7 @@ export type {
   Message,
   Attachment,
   SpamReport,
+  RiskLabel,
   Direction,
   CreateInboxOptions,
   ReadOptions,

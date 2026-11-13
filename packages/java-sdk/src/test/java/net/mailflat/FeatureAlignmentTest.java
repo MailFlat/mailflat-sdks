@@ -51,6 +51,7 @@ class FeatureAlignmentTest {
             + "\"attachments\":[{\"id\":7,\"filename\":\"plan.pdf\","
             + "\"content_type\":\"application/pdf\",\"size_bytes\":24325,\"truncated\":false}],"
             + "\"spam\":{\"score\":0.4,\"is_spam\":false},"
+            + "\"risk\":{\"level\":\"high\",\"reasons\":[\"instruction_override\",\"asks_for_secret\"]},"
             + "\"headers\":{\"Message-ID\":\"<abc@mail.gmail.com>\","
             + "\"Reply-To\":\"Support Team <support@svc.com>\","
             + "\"From\":\"noreply@svc.com\"}"
@@ -142,6 +143,9 @@ class FeatureAlignmentTest {
         assertEquals(24325, msg.attachments().get(0).sizeBytes());
         assertNotNull(msg.spam());
         assertEquals(0.4, msg.spam().get("score").asDouble());
+        assertNotNull(msg.risk());
+        assertEquals("high", msg.riskLevel());
+        assertEquals("instruction_override", msg.risk().get("reasons").get(0).asText());
         assertNotNull(msg.headers());
         assertEquals("<abc@mail.gmail.com>", msg.messageId());
     }

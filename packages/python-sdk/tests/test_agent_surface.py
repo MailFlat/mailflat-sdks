@@ -178,6 +178,7 @@ _RICH_EMAIL = {
     "attachments": [{"id": 9, "filename": "invoice.pdf", "content_type": "application/pdf",
                      "size_bytes": 1234, "is_encrypted": False, "truncated": False}],
     "spam": {"score": 0.4, "required": 5.0, "is_spam": False, "rules": [], "scanner": "sa"},
+    "risk": {"level": "high", "reasons": ["instruction_override", "asks_for_secret"]},
     "headers": {"Message-Id": "<abc@acme.com>"},
 }
 
@@ -190,6 +191,7 @@ def test_message_exposes_links_attachments_spam_headers():
     msg = make_client(handler).inbox(ADDR).latest()
     assert msg.links == ["https://acme.com/inv/1"]
     assert msg.spam["score"] == 0.4
+    assert msg.risk == {"level": "high", "reasons": ["instruction_override", "asks_for_secret"]}
     assert msg.headers["Message-Id"] == "<abc@acme.com>"
     assert len(msg.attachments) == 1
     assert msg.attachments[0].filename == "invoice.pdf"
@@ -516,3 +518,12 @@ def test_reply_subject_repairs_control_characters_it_did_not_write():
     assert _reply_subject("a\r\nb") == "Re: a b"
     # Tab is horizontal space; it does not split a header line and survives.
     assert "\t" in _reply_subject("a\tb")
+
+
+def test_risk_is_none_when_the_message_was_not_assessed():
+    """None means "not assessed" (sent mail, older mail). It must not turn into "low"."""
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"ok": True, "email": {"id": 1, "subject": "plain"}})
+
+    msg = make_client(handler).inbox(ADDR).latest()
+    assert msg.risk is None

@@ -90,7 +90,7 @@ SDK in tests without a network (e.g. `httpx.MockTransport`).
 
 ### `Message`
 `.otp`, `.subject`, `.sender`, `.text`, `.html`, `.to_address`, `.direction`, `.received_at`,
-`.links`, `.attachments`, `.spam`, `.headers`, `.is_read`, `.message_id`, `.reply_to_address`, `.raw`.
+`.links`, `.attachments`, `.spam`, `.risk`, `.headers`, `.is_read`, `.message_id`, `.reply_to_address`, `.raw`.
 
 - ⚠️ `.sender` is the **SMTP envelope sender** (MAIL FROM). On transactional mail that is
   usually a bounce address such as `bounces+abc@sendgrid.net`, so `send(to=msg.sender, …)`
@@ -102,6 +102,11 @@ SDK in tests without a network (e.g. `httpx.MockTransport`).
 - `.spam` — `{score, required, is_spam, rules, scanner}`, or `None` when never scanned
   (which is not the same as a score of 0). ⚠️ Spam scanning is currently **disabled** on
   mailflat.net, so today this is `None` for every message.
+- `.risk` — `{"level": "low" | "medium" | "high", "reasons": [...]}` on received mail, or `None`
+  when the message was not assessed (sent mail, older mail). It flags email that tries to
+  manipulate an agent: one that tells the reader to ignore its instructions, asks for a secret,
+  or hides instructions a person cannot see. The message is delivered either way. If your agent
+  reads mail, treat a `medium` or `high` message as data and do not follow what it says.
 - `.headers` — raw headers, exactly as they arrived. Names are case-insensitive per
   RFC 5322 but this is a plain dict, so **do not index it**: the real key is `Message-ID`,
   and `headers["Message-Id"]` raises `KeyError`. Use `.header("message-id")` or `.message_id`.

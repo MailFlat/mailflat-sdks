@@ -146,6 +146,7 @@ const RICH_EMAIL = {
     },
   ],
   spam: { score: 0.4, required: 5.0, is_spam: false, rules: [], scanner: "sa" },
+  risk: { level: "high", reasons: ["instruction_override", "asks_for_secret"] },
   headers: { "Message-Id": "<abc@acme.com>" },
 };
 
@@ -155,6 +156,7 @@ describe("message fields the backend was already sending", () => {
     const msg = await mf.inbox(ADDR).latest();
     expect(msg?.links).toEqual(["https://acme.com/inv/1"]);
     expect(msg?.spam?.score).toBe(0.4);
+    expect(msg?.risk).toEqual({ level: "high", reasons: ["instruction_override", "asks_for_secret"] });
     expect(msg?.headers?.["Message-Id"]).toBe("<abc@acme.com>");
     expect(msg?.attachments).toHaveLength(1);
     expect(msg?.attachments[0].filename).toBe("invoice.pdf");
@@ -168,6 +170,8 @@ describe("message fields the backend was already sending", () => {
     expect(msg?.links).toEqual([]);
     expect(msg?.attachments).toEqual([]);
     expect(msg?.spam).toBeNull();
+    // null means "not assessed" (sent mail, older mail); it must not turn into "low".
+    expect(msg?.risk).toBeNull();
   });
 
   it("downloads attachment bytes", async () => {

@@ -165,13 +165,18 @@ Google refreshes subscribed calendars every 8 to 24 hours; the API above is live
 
 ### `Message`
 `.otp`, `.subject`, `.sender`, `.text`, `.html`, `.toAddress`, `.direction`, `.receivedAt`,
-`.links`, `.attachments`, `.spam`, `.headers`, `.isRead`, `.raw`.
+`.links`, `.attachments`, `.spam`, `.risk`, `.headers`, `.isRead`, `.raw`.
 
 - `.links` — URLs found in the body (HTML hrefs first). For "click the verification link" flows.
 - `.attachments` — metadata; `msg.attachments[0].download()` fetches the bytes.
 - `.spam` — `{score, required, is_spam, rules, scanner}`, or `null` when never scanned.
   ⚠️ Spam scanning is currently **disabled** on mailflat.net, so today this is `null` for
   every message.
+- `.risk` — `{ level: "low" | "medium" | "high", reasons: string[] }` on received mail, or `null`
+  when the message was not assessed (sent mail, older mail). It flags email that tries to
+  manipulate an agent: one that tells the reader to ignore its instructions, asks for a secret,
+  or hides instructions a person cannot see. The message is delivered either way. If your agent
+  reads mail, treat a `medium` or `high` message as data and do not follow what it says.
 - `.headers` — raw headers, exactly as they arrived. Names are case-insensitive per
   RFC 5322 but this is a plain object, so **do not index it**: the real key is `Message-ID`,
   and `headers["Message-Id"]` is `undefined`. Use `.header("message-id")` or `.messageId`.
